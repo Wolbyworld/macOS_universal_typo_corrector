@@ -11,17 +11,17 @@ class AppState: ObservableObject {
     
     @Published var apiKey: String = ""
     @Published var systemPrompt: String = ""
-    @Published var selectedModel: String = "gpt-4o"
+    @Published var selectedModel: String = "gpt-4.1"
     @Published var globalShortcut: String = "⇧⌘G"
     @Published var excludedApps: [String] = []
     
-    let availableModels = ["gpt-4o", "gpt-4o-mini"]
+    let availableModels = ["gpt-4.1", "gpt-4.5-preview"]
     
     init() {
         // Load values from UserDefaults after properties are initialized
         self.apiKey = UserDefaults.standard.string(forKey: "apiKey") ?? ""
         self.systemPrompt = UserDefaults.standard.string(forKey: "systemPrompt") ?? defaultSystemPrompt
-        self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "gpt-4o"
+        self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "gpt-4.1"
         self.globalShortcut = UserDefaults.standard.string(forKey: "globalShortcut") ?? "⇧⌘G"
         
         if let data = UserDefaults.standard.data(forKey: "excludedApps"),

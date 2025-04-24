@@ -6,7 +6,7 @@ class OpenAIService {
     }
     
     private var model: String {
-        UserDefaults.standard.string(forKey: "selectedModel") ?? "gpt-4o"
+        UserDefaults.standard.string(forKey: "selectedModel") ?? "gpt-4.1"
     }
     
     private var systemPrompt: String {
