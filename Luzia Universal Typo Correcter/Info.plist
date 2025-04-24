@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>SUFeedURL</key>
+	<string>https://your-domain.com/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>YOUR_SPARKLE_PUBLIC_KEY</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Luzia needs permissions to automate keyboard actions for copying and pasting text.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2025. All rights reserved.</string>
+	<key>OSLogPreferences</key>
+	<dict>
+		<key>DEFAULT-OPTIONS</key>
+		<dict>
+			<key>Level</key>
+			<string>Debug</string>
+		</dict>
+	</dict>
+</dict>
+</plist> 
