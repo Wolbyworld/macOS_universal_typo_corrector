@@ -34,11 +34,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             showNotification("Permissions Required", "Please grant Accessibility permissions in System Settings > Privacy & Security > Accessibility")
         }
         
-        // Check for updates after a delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            self?.sparkleUpdater?.checkForUpdates()
-        }
-        
         // Add menu items to enable preferences access
         setupMenu()
     }
@@ -46,6 +41,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private func setupMenu() {
         let menu = NSMenu()
         
+        // Model selection section
+        let currentModelItem = NSMenuItem(title: "Current Model: \(appState.selectedModel)", action: nil, keyEquivalent: "")
+        currentModelItem.isEnabled = false
+        menu.addItem(currentModelItem)
+        
+        for model in appState.availableModels {
+            let item = NSMenuItem(title: model, action: #selector(selectModel(_:)), keyEquivalent: "")
+            item.representedObject = model
+            item.state = appState.selectedModel == model ? .on : .off
+            item.indentationLevel = 1
+            menu.addItem(item)
+        }
+        
+        menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Preferences...", action: #selector(openPreferences), keyEquivalent: ","))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: ""))
@@ -53,6 +62,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         
         statusItem.menu = menu
+    }
+    
+    @objc private func selectModel(_ sender: NSMenuItem) {
+        guard let model = sender.representedObject as? String else { return }
+        appState.selectedModel = model
+        setupMenu() // Refresh menu to update checkmarks
     }
     
     @objc public func openPreferences() {
@@ -244,7 +259,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                     button.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Processing")
                 }
             } else {
-                // Restore original icon
+                // Restore original system icon
                 if let button = self.statusItem.button {
                     button.image = NSImage(systemSymbolName: "textformat.abc.dottedunderline", accessibilityDescription: "Luzia Typo Correcter")
                 }
