@@ -3,36 +3,58 @@ import AppKit
 import Sparkle
 import UserNotifications
 import Accessibility
+import Foundation
+import Combine
+import ServiceManagement
+import OSLog
+import UniformTypeIdentifiers
+import Carbon
 
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var hotKey: HotKey?
+    var composerHotKey: HotKey?
     
     private var clipboardManager = ClipboardManager()
     private var openAIService = OpenAIService()
     private var sparkleUpdater: SparkleUpdater?
     private var isProcessing = false
+    private var screenshotManager = ScreenshotManager()
+    public var toastManager = ToastManager()
     public var appState = AppState()
+    
+    // Current composer session data
+    private var currentScreenshots: [NSImage] = []
+    private var screenshotPaths: [String] = []
+    private var activeWindowInfo: (windowID: CGWindowID, appName: String, windowTitle: String)?
+    private var bulletPoints: String = ""
+    private var composerWindowController: ComposerWindowController?
+    
+    // Store a reference to prevent premature deallocation
+    private var toastWindowController: NSWindowController?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Request notification permissions
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         
+        // Explicitly ensure no toast is showing on startup
+        toastManager.hideToast()
+        
         setupMenuBarItem()
+        
+        // Reset and setup hotkeys to ensure they're properly registered
         setupHotKey()
+        
+        // Configure window behavior
+        configureWindowBehavior()
         
         // Initialize Sparkle
         sparkleUpdater = SparkleUpdater()
         
-        // Check for accessibility permissions
-        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-        let accessibilityEnabled = AXIsProcessTrustedWithOptions(options)
-        
-        if !accessibilityEnabled {
-            showNotification("Permissions Required", "Please grant Accessibility permissions in System Settings > Privacy & Security > Accessibility")
-        }
+        // Check for accessibility permissions but don't prompt on startup
+        checkAccessibilityPermissions(showPrompt: false)
         
         // Add menu items to enable preferences access
         setupMenu()
@@ -40,6 +62,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     
     private func setupMenu() {
         let menu = NSMenu()
+        
+        // Add option to show main window
+        menu.addItem(NSMenuItem(title: "Show Main Window", action: #selector(showMainWindow), keyEquivalent: ""))
+        
+        // Add option to reset hotkeys
+        menu.addItem(NSMenuItem(title: "Reset Keyboard Shortcuts", action: #selector(resetHotkeys), keyEquivalent: ""))
         
         // Model selection section
         let currentModelItem = NSMenuItem(title: "Current Model: \(appState.selectedModel)", action: nil, keyEquivalent: "")
@@ -122,21 +150,125 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             if popover.isShown {
                 popover.performClose(nil)
             } else {
+                // If the app is hidden (minimized to menu bar), make it visible again
+                if !NSApp.isActive {
+                    unhideApp()
+                }
+                
                 statusItem.menu = nil // Clear the menu when showing popover
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             }
         }
     }
     
+    // Method to unhide (show) the app when clicking menu bar icon
+    private func unhideApp() {
+        NSApp.unhide(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        
+        // Make sure the main window is visible
+        for window in NSApp.windows where window.isVisible == false {
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+    
+    @objc private func showMainWindow() {
+        unhideApp()
+    }
+    
     private func setupHotKey() {
-        // Default shortcut: ⇧⌘G
-        hotKey = HotKey(key: .g, modifiers: [.shift, .command])
-        hotKey?.keyDownHandler = { [weak self] in
-            self?.handleHotKeyPressed()
+        // First, check if we already have the permissions without prompting
+        let hasPermission = checkAccessibilityPermissions(showPrompt: false)
+        
+        // Unregister any existing hotkeys first
+        hotKey = nil
+        composerHotKey = nil
+        
+        // Wait a moment to ensure previous hotkeys are fully unregistered
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+            
+            // Try registering the typo correction hotkey with a slightly different technique
+            print("Attempting to register typo correction hotkey with alternative approach")
+            
+            // Instead of using the convenience modifiers array, use the raw modifier flags
+            // This sometimes works when the array approach doesn't
+            var carbonModifiers: UInt32 = 0
+            carbonModifiers |= UInt32(cmdKey)
+            carbonModifiers |= UInt32(shiftKey)
+            
+            // For diagnostic purposes, also try registering with a different key (F instead of G)
+            // to see if the problem is with the specific key
+            self.hotKey = HotKey(key: .f, modifiers: [.shift, .command], identifier: 0)
+            self.hotKey?.keyDownHandler = { [weak self] in
+                print("Command+Shift+F key pressed - trigger typo correction")
+                self?.handleHotKeyPressed()
+            }
+            
+            // New shortcut: ⇧⌘M for composer with different identifier
+            self.composerHotKey = HotKey(key: .m, modifiers: [.shift, .command], identifier: 1)
+            self.composerHotKey?.keyDownHandler = { [weak self] in
+                print("Command+Shift+M key pressed - trigger composer")
+                self?.handleComposerHotKeyPressed()
+            }
+            
+            // Only show a prompt if we don't have permission AND we're trying to register hotkeys
+            if !hasPermission {
+                print("No accessibility permission, will ask user when they try to use hotkeys")
+            } else {
+                print("Hotkeys registered: Command+Shift+F for correction, Command+Shift+M for composer")
+                
+                // Show a notification to inform the user about the key change
+                self.showNotification(
+                    "Keyboard Shortcut Changed",
+                    "We've changed the typo correction shortcut to Command+Shift+F to resolve a conflict"
+                )
+            }
+        }
+    }
+    
+    // Method to reset hotkeys and permissions
+    @objc public func resetHotkeys() {
+        print("🔄 Starting complete hotkey reset process...")
+        
+        // Print the current registered hotkeys for debugging
+        HotKey.printRegisteredHotKeys()
+        
+        // Unregister existing hotkeys first
+        hotKey = nil
+        composerHotKey = nil
+        
+        // Use the static method to ensure ALL hotkeys are unregistered
+        HotKey.resetAllHotKeys()
+        
+        print("Waiting for hotkey system to stabilize...")
+        
+        // Re-register hotkeys after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self = self else { return }
+            
+            // Setup hotkeys again
+            self.setupHotKey()
+            
+            // Print the new registered hotkeys for debugging
+            HotKey.printRegisteredHotKeys()
+            
+            // Suggest refreshing accessibility permissions
+            if !self.checkAccessibilityPermissions(showPrompt: true) {
+                self.showNotification("Accessibility Permissions Required", "Please grant Accessibility permissions in System Settings")
+            } else {
+                self.showNotification("Hotkeys Reset", "The keyboard shortcuts have been reset successfully")
+                print("✅ Hotkey reset completed")
+            }
         }
     }
     
     private func handleHotKeyPressed() {
+        // Check accessibility permissions only when actually needed - and show prompt
+        if !checkAccessibilityPermissions(showPrompt: true) {
+            return
+        }
+        
         guard !isProcessing else { 
             print("Already processing a correction, ignoring hotkey")
             return 
@@ -243,6 +375,235 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 print("Error during text correction process: \(error.localizedDescription)")
                 showNotification("Error", error.localizedDescription)
             }
+        }
+    }
+    
+    private func handleComposerHotKeyPressed() {
+        // Check accessibility permissions only when actually needed - and show prompt
+        if !checkAccessibilityPermissions(showPrompt: true) {
+            return
+        }
+        
+        guard !isProcessing else {
+            print("Already processing, ignoring composer hotkey")
+            return
+        }
+        guard !isExcludedApp() else {
+            print("Current app is excluded, ignoring composer hotkey")
+            return
+        }
+        
+        isProcessing = true
+        animateStatusItem(true)
+        print("Starting composer flow")
+        
+        Task {
+            defer {
+                if currentScreenshots.isEmpty && composerWindowController == nil {
+                    resetComposerState() // Only reset if we didn't successfully capture any screenshots or show the window
+                }
+            }
+            
+            // Check if screenshots are enabled in preferences
+            let includeScreenshots = UserDefaults.standard.bool(forKey: "includeScreenshotsForContext", defaultValue: true)
+            
+            if includeScreenshots {
+                // Step 1: Capture screenshots of all screens
+                print("Step 1: Capturing all screens individually")
+                do {
+                    currentScreenshots = try screenshotManager.captureAllScreensIndividually()
+                    print("Successfully captured \(currentScreenshots.count) screens")
+                    
+                    // Save the screenshots to temporary files
+                    screenshotPaths = []
+                    for (index, screenshot) in currentScreenshots.enumerated() {
+                        do {
+                            let url = try screenshotManager.saveImageToTemporaryFile(screenshot)
+                            screenshotPaths.append(url.path)
+                            print("Screen \(index) screenshot saved to: \(url.path)")
+                        } catch {
+                            print("Failed to save screenshot \(index): \(error)")
+                        }
+                    }
+                } catch {
+                    print("Error capturing screenshots: \(error)")
+                    // Continue without screenshots
+                    print("Continuing without screenshots")
+                }
+            } else {
+                print("Screenshots are disabled in preferences - skipping screenshot capture")
+            }
+            
+            // Step 2: Get active window information
+            print("Step 2: Getting active window information")
+            do {
+                activeWindowInfo = try screenshotManager.getActiveWindowInfo()
+                if let windowInfo = activeWindowInfo {
+                    print("Active window: \(windowInfo.appName) - \(windowInfo.windowTitle)")
+                } else {
+                    print("No active window detected")
+                }
+                
+                // Step 3: Show composer window
+                print("Step 3: Showing composer window")
+                DispatchQueue.main.async {
+                    self.showComposerWindow()
+                }
+            } catch {
+                print("Error in composer flow: \(error)")
+                // Show an error to the user
+                DispatchQueue.main.async {
+                    self.showNotification("Error", error.localizedDescription)
+                    self.resetComposerState()
+                    self.animateStatusItem(false)
+                    self.isProcessing = false
+                }
+            }
+        }
+    }
+    
+    private func showComposerWindow() {
+        // Create a window controller with our composer view
+        let composerView = ComposerView(
+            onSubmit: { bulletText in
+                // Store the bullet points
+                self.bulletPoints = bulletText
+                
+                // Handle bullet point submission
+                self.handleBulletPointsSubmitted()
+            },
+            onClose: {
+                // Handle window closing without submission
+                print("Composer window closed without submission")
+                self.resetComposerState()
+                self.animateStatusItem(false)
+                self.isProcessing = false
+            },
+            activeWindowInfo: activeWindowInfo.map { ($0.appName, $0.windowTitle) }
+        )
+        .environmentObject(appState)
+        
+        // Create the window controller with improved window handling
+        composerWindowController = ComposerWindowController(rootView: composerView)
+        
+        // Let system know we're showing a window
+        NSApp.activate(ignoringOtherApps: true)
+        
+        // Use the enhanced window showing functionality
+        composerWindowController?.showWindow(nil)
+        
+        print("Composer window displayed")
+    }
+    
+    private func handleBulletPointsSubmitted() {
+        print("Step 4: Bullet points submitted, preparing data for OpenAI request")
+        
+        // Ensure we have the necessary data
+        guard let windowInfo = activeWindowInfo else {
+            print("Error: No active window information available")
+            showNotification("Error", "No active window information")
+            resetComposerState()
+            animateStatusItem(false)
+            isProcessing = false
+            return
+        }
+        
+        // Close the composer window immediately to show we're processing
+        DispatchQueue.main.async {
+            self.composerWindowController?.close()
+            self.composerWindowController = nil
+            self.showNotification("Processing", "Generating draft from your bullet points...")
+        }
+        
+        // Process the bullet points with OpenAI
+        Task {
+            do {
+                // Call OpenAI to generate the draft
+                let generatedDraft = try await openAIService.prepareDraftFromScreenshots(
+                    screenshotPaths: screenshotPaths,
+                    activeWindowInfo: windowInfo,
+                    bulletPoints: bulletPoints
+                )
+                
+                // Put the generated draft in the clipboard
+                DispatchQueue.main.async {
+                    self.clipboardManager.setClipboardText(generatedDraft)
+                    
+                    // Show a preview of the draft in the notification
+                    let previewText = generatedDraft.count > 100 
+                        ? "\(generatedDraft.prefix(100))..." 
+                        : generatedDraft
+                    
+                    // Show regular notification
+                    self.showNotification(
+                        "Draft Generated", 
+                        "Your draft has been copied to the clipboard.\n\nPreview: \(previewText)"
+                    )
+                    
+                    // Only use the custom toast window approach, not the ToastManager
+                    // self.toastManager.showToast(
+                    //     message: "Draft ready and copied to clipboard",
+                    //     duration: 2.5,
+                    //     icon: "checkmark.circle.fill"
+                    // )
+                    
+                    // Show the toast in a separate window
+                    self.showToastWindow(message: "Draft ready and copied to clipboard", 
+                                       icon: "checkmark.circle.fill",
+                                       duration: 2.5)
+                    
+                    self.resetComposerState()
+                    self.animateStatusItem(false)
+                    self.isProcessing = false
+                }
+            } catch {
+                print("Error generating draft: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    let errorMessage = (error as? OpenAIError)?.errorDescription ?? error.localizedDescription
+                    self.showNotification("Draft Error", "Failed to generate draft: \(errorMessage)")
+                    self.resetComposerState()
+                    self.animateStatusItem(false)
+                    self.isProcessing = false
+                }
+            }
+        }
+    }
+    
+    private func resetComposerState() {
+        // Clean up the temporary files
+        for path in screenshotPaths {
+            do {
+                try FileManager.default.removeItem(atPath: path)
+                print("Deleted temporary file: \(path)")
+            } catch {
+                print("Failed to delete temporary file: \(path) - \(error.localizedDescription)")
+            }
+        }
+        
+        // Reset the state
+        currentScreenshots = []
+        screenshotPaths = []
+        activeWindowInfo = nil
+        bulletPoints = ""
+    }
+    
+    private func checkScreenRecordingPermission() {
+        let screenRecordingAccess = CGPreflightScreenCaptureAccess()
+        
+        if !screenRecordingAccess {
+            print("WARNING: Screen recording permission is not granted. Requesting permission...")
+            showNotification("Permission Required", "Screen recording permission is needed to capture specific windows")
+            
+            // Request permission
+            let success = CGRequestScreenCaptureAccess()
+            print("Screen recording permission request result: \(success ? "Granted" : "Denied or pending")")
+            
+            // Open the Screen Recording privacy settings
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                NSWorkspace.shared.open(url)
+            }
+        } else {
+            print("Screen recording permission is already granted")
         }
     }
     
@@ -372,10 +733,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     private func isExcludedApp() -> Bool {
-        if let frontmostApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier {
-            return appState.isAppExcluded(frontmostApp)
+        // Get the frontmost app's bundle identifier
+        guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
+            return false
         }
-        return false
+        
+        let bundleIdentifier = frontmostApp.bundleIdentifier ?? ""
+        
+        // Get the list of excluded apps from preferences
+        let excludedApps = UserDefaults.standard.stringArray(forKey: "excludedApps") ?? []
+        
+        return excludedApps.contains(bundleIdentifier)
     }
     
     private func showNotification(_ title: String, _ message: String) {
@@ -394,5 +762,250 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
+    }
+    
+    // Prevent app from terminating when all windows are closed
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return false // Don't quit when windows are closed
+    }
+    
+    // Add a method to show toast in a separate window
+    private func showToastWindow(message: String, icon: String, duration: TimeInterval) {
+        DispatchQueue.main.async {
+            // Create a very small window just for the toast
+            let toastWindow = NSPanel(
+                contentRect: NSRect(x: 0, y: 0, width: 300, height: 40),
+                styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
+                backing: .buffered,
+                defer: false
+            )
+            
+            // Configure window properties
+            toastWindow.backgroundColor = .clear
+            toastWindow.isOpaque = false
+            toastWindow.hasShadow = true
+            toastWindow.level = .floating
+            toastWindow.titleVisibility = .hidden
+            toastWindow.titlebarAppearsTransparent = true
+            
+            // Position near the top center of the screen
+            if let screen = NSScreen.main {
+                let screenFrame = screen.visibleFrame
+                let windowFrame = toastWindow.frame
+                let x = screenFrame.midX - (windowFrame.width / 2)
+                let y = screenFrame.maxY - windowFrame.height - 60
+                toastWindow.setFrameOrigin(NSPoint(x: x, y: y))
+            }
+            
+            // Create a simple NSViewController instead of using SwiftUI
+            let viewController = NSViewController()
+            let containerView = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 40))
+            
+            // Create the toast contents
+            let imageView = NSImageView(frame: NSRect(x: 12, y: 12, width: 16, height: 16))
+            imageView.image = NSImage(systemSymbolName: icon, accessibilityDescription: nil)
+            
+            let textField = NSTextField(frame: NSRect(x: 36, y: 12, width: 250, height: 16))
+            textField.stringValue = message
+            textField.isEditable = false
+            textField.isBordered = false
+            textField.drawsBackground = false
+            textField.font = NSFont.systemFont(ofSize: 12)
+            
+            // Add elements to the view
+            containerView.addSubview(imageView)
+            containerView.addSubview(textField)
+            
+            // Add background
+            containerView.wantsLayer = true
+            containerView.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.9).cgColor
+            containerView.layer?.cornerRadius = 16
+            
+            viewController.view = containerView
+            toastWindow.contentViewController = viewController
+            
+            // Create a window controller to maintain a strong reference
+            self.toastWindowController = NSWindowController(window: toastWindow)
+            
+            // Show the window
+            self.toastWindowController?.showWindow(nil)
+            
+            // Auto-close after duration
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+                // Close the window and nil out the reference
+                self.toastWindowController?.close()
+                self.toastWindowController = nil
+            }
+        }
+    }
+    
+    // Configure how windows behave when minimized
+    private func configureWindowBehavior() {
+        // Set the window to hide when minimized rather than showing in the Dock
+        NSApp.setActivationPolicy(.accessory)
+        
+        // Register for reopen events (when user clicks dock icon)
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleReopenApp(event:replyEvent:)),
+            forEventClass: kCoreEventClass,
+            andEventID: kAEReopenApplication
+        )
+        
+        // Configure any existing windows
+        for window in NSApp.windows {
+            // Use a decent animation for minimize
+            window.animationBehavior = .documentWindow
+            
+            // Set to automatically hide title bar
+            window.styleMask.insert(.fullSizeContentView)
+            
+            // Set title bar to be transparent
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            
+            // Make sure closing the window doesn't terminate the app
+            window.isReleasedWhenClosed = false
+            
+            // Handle window close events by hiding the app instead
+            window.standardWindowButton(.closeButton)?.action = #selector(hideApp)
+        }
+    }
+    
+    @objc private func hideApp() {
+        NSApp.hide(nil)
+    }
+    
+    @objc private func handleReopenApp(event: NSAppleEventDescriptor, replyEvent: NSAppleEventDescriptor) {
+        // When user clicks dock icon or app icon, show the window
+        unhideApp()
+    }
+    
+    // Check if we have accessibility permissions and prompt if needed
+    private func checkAccessibilityPermissions(showPrompt: Bool = false) -> Bool {
+        // Check without showing prompt first
+        let checkOptions: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
+        let accessibilityEnabled = AXIsProcessTrustedWithOptions(checkOptions)
+        
+        // If accessibility is not enabled and we want to show the prompt
+        if !accessibilityEnabled && showPrompt {
+            // Now show the prompt with a separate call
+            let promptOptions: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+            let _ = AXIsProcessTrustedWithOptions(promptOptions)
+            
+            print("Accessibility permissions not granted - prompting user")
+            showNotification("Permissions Required", "Please grant Accessibility permissions in System Settings > Privacy & Security > Accessibility")
+            
+            // Only open preferences if explicitly requested
+            if showPrompt {
+                openAccessibilityPreferences()
+            }
+        }
+        
+        return accessibilityEnabled
+    }
+    
+    // Add this new method for a comprehensive reset of permissions and hotkeys
+    @objc public func forceResetPermissions() {
+        print("🚨 PERFORMING EMERGENCY FORCE RESET OF PERMISSIONS AND HOTKEYS 🚨")
+        
+        // 1. Aggressively unregister ALL hotkeys
+        print("Step 1: Forcefully unregistering all hotkeys")
+        hotKey?.unregister()
+        composerHotKey?.unregister()
+        hotKey = nil
+        composerHotKey = nil
+        
+        // Use the static method to ensure ALL hotkeys are unregistered system-wide
+        HotKey.resetAllHotKeys()
+        
+        // 2. Add direct check of Carbon API status
+        print("Step 2: Checking Carbon API status")
+        let eventTarget = Carbon.GetApplicationEventTarget()
+        if eventTarget == nil {
+            print("⚠️ Warning: GetApplicationEventTarget() returned nil - Carbon event system may be unavailable")
+        } else {
+            print("Carbon event target available: \(eventTarget)")
+        }
+        
+        // 3. Launch a separate terminal command to reset accessibility database
+        print("Step 3: Requesting user to manually reset permissions cache")
+        let message = """
+        To fix the hotkey issue, please run this command in Terminal:
+        
+        tccutil reset Accessibility com.luzia.typocorrecter
+        
+        Then restart the app after running this command.
+        
+        If that doesn't work, please try:
+        1. Open System Settings > Privacy & Security > Accessibility
+        2. Remove Luzia from the list (if present)
+        3. Restart your Mac
+        4. Launch Luzia again and grant permissions when prompted
+        """
+        
+        // Show both a notification and a dialog
+        showNotification("Permission Reset Required", "Please check the dialog for instructions")
+        
+        DispatchQueue.main.async {
+            // Create and configure alert
+            let alert = NSAlert()
+            alert.messageText = "Permission Reset Required"
+            alert.informativeText = message
+            alert.alertStyle = .warning
+            
+            // Add a copy button
+            alert.addButton(withTitle: "Copy Command")
+            alert.addButton(withTitle: "Open Accessibility Settings")
+            alert.addButton(withTitle: "Cancel")
+            
+            // Show alert and handle response
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                // Copy the command to clipboard
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString("tccutil reset Accessibility com.luzia.typocorrecter", forType: .string)
+                
+                // Show confirmation
+                self.showNotification("Command Copied", "The reset command has been copied to your clipboard")
+            } else if response == .alertSecondButtonReturn {
+                // Open Accessibility settings
+                self.openAccessibilityPreferences()
+            }
+        }
+        
+        // 4. Reset HotKey internal state and test registration
+        print("Step 4: Forcefully creating new test hotkey to verify registration system")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            // Try to register a test hotkey on a different key to see if the system works at all
+            print("Attempting to register a diagnostic test hotkey...")
+            let testHotKey = HotKey(key: .t, modifiers: [.shift, .command], identifier: 999)
+            let success = testHotKey.hotKeyRef != nil
+            print("Test hotkey registration result: \(success ? "SUCCESS ✅" : "FAILED ❌")")
+            
+            // Show the result to the user
+            self.showNotification(
+                success ? "Hotkey System Working" : "Hotkey System Failed",
+                success ? "Test hotkey registered successfully. Try the app hotkeys again." : "Unable to register test hotkey. System restart may be required."
+            )
+            
+            // Clean up test hotkey
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                testHotKey.unregister()
+                print("Test hotkey unregistered")
+            }
+        }
+        
+        // 5. Final check of registered hotkeys
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            print("Final check of registered hotkeys:")
+            HotKey.printRegisteredHotKeys()
+        }
+    }
+    
+    // Update the DiagnosticsView with a button to perform the emergency reset
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        // Handle notification response
+        completionHandler()
     }
 } 

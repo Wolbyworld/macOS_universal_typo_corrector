@@ -3,24 +3,79 @@ import Cocoa
 import Carbon
 
 class HotKey {
+    // Static property to keep track of all registered hotkeys
+    static private var registeredHotKeys: [UInt32: HotKey] = [:]
+    
+    // Add static methods to manage all hotkeys
+    static func resetAllHotKeys() {
+        print("⚠️ Performing global reset of ALL hotkeys")
+        
+        // Make a copy of the keys to avoid modification during iteration
+        let identifiers = Array(registeredHotKeys.keys)
+        
+        // Unregister all hotkeys
+        for identifier in identifiers {
+            registeredHotKeys[identifier]?.unregister()
+            print("Unregistered hotkey with ID \(identifier)")
+        }
+        
+        // Clear the registration dictionary
+        registeredHotKeys.removeAll()
+        print("Cleared all hotkey registrations")
+    }
+    
+    // Add debugging method to list all currently registered hotkeys
+    static func printRegisteredHotKeys() {
+        print("--- Currently Registered Hotkeys ---")
+        if registeredHotKeys.isEmpty {
+            print("No hotkeys currently registered")
+        } else {
+            for (identifier, hotkey) in registeredHotKeys {
+                print("HotKey ID \(identifier): keyCode=\(hotkey.keyCode), modifiers=\(hotkey.modifiers), registered=\(hotkey.hotKeyRef != nil)")
+            }
+        }
+        print("-----------------------------------")
+    }
+    
     var keyDownHandler: (() -> Void)?
     var keyUpHandler: (() -> Void)?
     
     let identifier: UInt32
-    private let keyCode: Int
-    private let modifiers: NSEvent.ModifierFlags
+    let keyCode: Int
+    let modifiers: NSEvent.ModifierFlags
     private var eventHandler: EventHandlerRef?
-    private var hotKeyRef: EventHotKeyRef?
+    var hotKeyRef: EventHotKeyRef?
     
     init(key: KeyCode, modifiers: NSEvent.ModifierFlags, identifier: UInt32 = 0) {
         self.keyCode = key.carbonKeyCode
         self.modifiers = modifiers
         self.identifier = identifier
+        
+        print("Creating hotkey: \(key) with modifiers \(modifiers) and ID \(identifier)")
+        
+        // Register in the static dictionary
+        if HotKey.registeredHotKeys[identifier] != nil {
+            print("⚠️ Warning: Overwriting previously registered hotkey with ID \(identifier)")
+            HotKey.registeredHotKeys[identifier]?.unregister()
+        }
+        HotKey.registeredHotKeys[identifier] = self
+        
         register()
+        
+        if hotKeyRef != nil {
+            print("✅ Successfully registered hotkey \(key) with ID \(identifier)")
+        } else {
+            print("❌ Failed to register hotkey \(key) with ID \(identifier)")
+            
+            // Remove from registry if registration failed
+            HotKey.registeredHotKeys.removeValue(forKey: identifier)
+        }
     }
     
     deinit {
         unregister()
+        HotKey.registeredHotKeys.removeValue(forKey: identifier)
+        print("Unregistered hotkey with ID \(identifier) in deinit")
     }
     
     private func register() {
@@ -28,7 +83,6 @@ class HotKey {
         
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         
-        // Install event handler
         let selfPointer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
         let handlerCallback: EventHandlerUPP = { (_, eventRef, userData) -> OSStatus in
             guard let userData = userData else { return OSStatus(eventNotHandledErr) }
@@ -38,6 +92,7 @@ class HotKey {
             GetEventParameter(eventRef, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &theHotKeyID)
             
             if theHotKeyID.id == hotKey.identifier {
+                print("Hotkey with ID \(hotKey.identifier) triggered!")
                 hotKey.keyDownHandler?()
             }
             
@@ -66,19 +121,30 @@ class HotKey {
         if modifiers.contains(.control) { carbonModifiers |= UInt32(controlKey) }
         if modifiers.contains(.shift) { carbonModifiers |= UInt32(shiftKey) }
         
-        RegisterEventHotKey(UInt32(keyCode), carbonModifiers, hotKeyID, GetApplicationEventTarget(), OptionBits(0), &hotKeyRef)
+        let regStatus = RegisterEventHotKey(UInt32(keyCode), carbonModifiers, hotKeyID, GetApplicationEventTarget(), OptionBits(0), &hotKeyRef)
+        if regStatus != noErr {
+            print("Failed to register hotkey: \(regStatus)")
+        }
     }
     
-    private func unregister() {
+    func unregister() {
         if let eventHandler = eventHandler {
             RemoveEventHandler(eventHandler)
             self.eventHandler = nil
+            print("Removed event handler for hotkey \(identifier)")
         }
         
         if let hotKeyRef = hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
             self.hotKeyRef = nil
+            print("Unregistered hotkey \(identifier)")
         }
+    }
+    
+    func reregister() {
+        print("Re-registering hotkey with ID \(identifier)")
+        unregister()
+        register()
     }
 }
 
