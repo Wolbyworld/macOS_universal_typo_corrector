@@ -16,7 +16,7 @@ class AppState: ObservableObject {
     @Published var excludedApps: [String] = []
     @Published var openOnStartup: Bool = false
     
-    let availableModels = ["gpt-4.1", "gpt-4.5-preview"]
+    let availableModels = ["gpt-4.1"]
     
     init() {
         // Load values from UserDefaults after properties are initialized
