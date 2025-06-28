@@ -14,6 +14,7 @@ class AppState: ObservableObject {
     @Published var selectedModel: String = "gpt-4.1"
     @Published var globalShortcut: String = "⇧⌘G"
     @Published var excludedApps: [String] = []
+    @Published var openOnStartup: Bool = false
     
     let availableModels = ["gpt-4.1", "gpt-4.5-preview"]
     
@@ -23,6 +24,7 @@ class AppState: ObservableObject {
         self.systemPrompt = UserDefaults.standard.string(forKey: "systemPrompt") ?? defaultSystemPrompt
         self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "gpt-4.1"
         self.globalShortcut = UserDefaults.standard.string(forKey: "globalShortcut") ?? "⇧⌘G"
+        self.openOnStartup = UserDefaults.standard.bool(forKey: "openOnStartup")
         
         if let data = UserDefaults.standard.data(forKey: "excludedApps"),
            let decoded = try? JSONDecoder().decode([String].self, from: data) {
@@ -53,6 +55,10 @@ class AppState: ObservableObject {
         $excludedApps.sink { [weak self] newValue in
             let data = try? JSONEncoder().encode(newValue)
             UserDefaults.standard.set(data, forKey: "excludedApps")
+        }.store(in: &cancellables)
+        
+        $openOnStartup.sink { [weak self] newValue in
+            UserDefaults.standard.set(newValue, forKey: "openOnStartup")
         }.store(in: &cancellables)
     }
     

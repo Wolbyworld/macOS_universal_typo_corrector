@@ -3,6 +3,7 @@ import AppKit
 import Sparkle
 import UserNotifications
 import Accessibility
+import Combine
 
 class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var statusItem: NSStatusItem!
@@ -12,8 +13,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var clipboardManager = ClipboardManager()
     private var openAIService = OpenAIService()
     private var sparkleUpdater: SparkleUpdater?
+    private var startupManager = StartupManager()
     private var isProcessing = false
     public var appState = AppState()
+    private var cancellables = Set<AnyCancellable>()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Request notification permissions
@@ -36,6 +39,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         
         // Add menu items to enable preferences access
         setupMenu()
+        
+        // Setup startup behavior observer
+        setupStartupObserver()
     }
     
     private func setupMenu() {
@@ -395,4 +401,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             NSWorkspace.shared.open(url)
         }
     }
-} 
+    
+    // MARK: - Startup Management
+    
+    private func setupStartupObserver() {
+        print("AppDelegate: Setting up startup behavior observer")
+        
+        appState.$openOnStartup
+            .dropFirst() // Skip initial value to avoid triggering on app launch
+            .sink { [weak self] isEnabled in
+                self?.handleStartupPreferenceChange(isEnabled)
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func handleStartupPreferenceChange(_ isEnabled: Bool) {
+        print("AppDelegate: Startup preference changed to: \(isEnabled)")
+        
+        Task { @MainActor in
+            do {
+                if isEnabled {
+                    try startupManager.enableStartup()
+                    showNotification("Startup Enabled", "Luzia will now launch automatically when you log in.")
+                } else {
+                    try startupManager.disableStartup()
+                    showNotification("Startup Disabled", "Luzia will no longer launch automatically.")
+                }
+            } catch {
+                print("AppDelegate Error: Failed to change startup setting - \(error.localizedDescription)")
+                
+                // Revert the UI state since the operation failed
+                appState.openOnStartup = !isEnabled
+                
+                // Show user-friendly error
+                showNotification("Startup Setting Failed", error.localizedDescription)
+            }
+        }
+         }
+}

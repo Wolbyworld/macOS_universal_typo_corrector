@@ -42,6 +42,13 @@ struct PreferencesView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                
+                Section("App Behavior") {
+                    Toggle("Open on Startup", isOn: $appState.openOnStartup)
+                    Text("Automatically launch Luzia when you log into macOS")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             .tabItem {
                 Label("General", systemImage: "gear")
