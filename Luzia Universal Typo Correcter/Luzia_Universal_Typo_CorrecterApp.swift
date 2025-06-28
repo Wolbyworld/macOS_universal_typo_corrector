@@ -5,24 +5,17 @@
 //  Created by Alvaro Martinez Higes on 4/23/25.
 //
 
-import SwiftUI
 import AppKit
 
+// Pure NSApplication approach for agent applications
+// This eliminates SwiftUI App structure that conflicts with LSUIElement
 @main
-struct Luzia_Universal_Typo_CorrecterApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    
-    var body: some Scene {
-        Settings {
-            PreferencesView()
-                .environmentObject(appDelegate.appState)
-        }
-        .commands {
-            CommandGroup(replacing: .appSettings) {
-                Button("Preferences...") {
-                    NSApp.sendAction(#selector(AppDelegate.openPreferences), to: nil, from: nil)
-                }.keyboardShortcut(",")
-            }
-        }
+class Main {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.run()
     }
 }
+

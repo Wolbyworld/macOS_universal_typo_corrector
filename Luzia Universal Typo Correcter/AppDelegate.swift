@@ -19,6 +19,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var cancellables = Set<AnyCancellable>()
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Ensure app behaves as agent (LSUIElement now properly set in build settings)
+        NSApp.setActivationPolicy(.accessory)
+        
         // Request notification permissions
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
@@ -42,6 +45,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         
         // Setup startup behavior observer
         setupStartupObserver()
+        
+        // Hide any main windows for agent app behavior
+        hideMainWindows()
     }
     
     private func setupMenu() {
@@ -77,10 +83,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     @objc public func openPreferences() {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-        
-        // If the above doesn't work, try a direct approach
+        // For agent applications, avoid NSApp.activate to prevent Dock appearance
+        // Create preferences window directly
         let prefWindowController = NSWindowController(
             window: NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
@@ -95,7 +99,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         prefWindowController.contentViewController = NSHostingController(
             rootView: PreferencesView().environmentObject(appState)
         )
-        prefWindowController.showWindow(nil)
+        
+        // Make window float above other windows and activate it
+        prefWindowController.window?.level = .floating
+        prefWindowController.window?.makeKeyAndOrderFront(nil)
     }
     
     @objc private func checkForUpdates() {
@@ -399,6 +406,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Open System Settings to Accessibility > Privacy
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
+        }
+    }
+    
+    private func hideMainWindows() {
+        // For agent applications, hide any main windows that might appear
+        DispatchQueue.main.async {
+            for window in NSApp.windows {
+                if window.title.isEmpty || window.contentViewController is NSHostingController<EmptyView> {
+                    window.orderOut(nil)
+                    window.setIsVisible(false)
+                }
+            }
         }
     }
     
