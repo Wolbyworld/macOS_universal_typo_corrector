@@ -1,14 +1,8 @@
 import Foundation
 
 class OpenAIService {
-    private var apiKey: String {
-        UserDefaults.standard.string(forKey: "apiKey") ?? ""
-    }
-    
-    private var model: String {
-        UserDefaults.standard.string(forKey: "selectedModel") ?? "gpt-4.1"
-    }
-    
+    private var apiKey: String { UserDefaults.standard.string(forKey: "apiKey") ?? "" }
+    private var model: String { UserDefaults.standard.string(forKey: "selectedModel") ?? "gpt-5-mini" }
     private var systemPrompt: String {
         UserDefaults.standard.string(forKey: "systemPrompt") ?? """
         You are an AI text corrector. Fix any typos, grammatical errors, or awkward phrasing in the provided text. Maintain the original meaning and style.
@@ -16,84 +10,58 @@ class OpenAIService {
         Return ONLY the corrected text without explanations or additional commentary.
         """
     }
-    
-    func correctText(_ text: String) async throws -> String? {
-        print("OpenAI Service: Starting text correction")
-        print("Text length: \(text.count) characters")
-        
-        guard !apiKey.isEmpty else {
-            print("OpenAI Service Error: No API key set")
-            throw OpenAIError.noApiKey
+
+    private var reasoningEffort: String { UserDefaults.standard.string(forKey: "reasoningEffort") ?? "minimum" }
+    private var reasoningEffortAPI: String? {
+        switch reasoningEffort.lowercased() {
+        case "minimum", "low": return "low"
+        case "medium": return "medium"
+        case "high": return "high"
+        default: return nil
         }
-        
-        print("OpenAI Service: Using model: \(model)")
-        
-        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+    }
+
+    func correctText(_ text: String) async throws -> String? {
+        guard !apiKey.isEmpty else { throw OpenAIError.noApiKey }
+
+        let url = URL(string: "https://api.openai.com/v1/responses")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let requestBody: [String: Any] = [
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        request.addValue("responses=v1", forHTTPHeaderField: "OpenAI-Beta")
+
+        var body: [String: Any] = [
             "model": model,
-            "messages": [
-                ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": text]
-            ],
-            "temperature": 0.3
+            "instructions": systemPrompt,
+            "input": text,
+            "max_output_tokens": 256,
+            // Known-good shape for plain text output
+            "text": [
+                "format": ["type": "text"]
+            ]
         ]
-        
+        if let effort = reasoningEffortAPI { body["reasoning"] = ["effort": effort] }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else { throw OpenAIError.invalidResponse }
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 400, let s = String(data: data, encoding: .utf8) { print("400 error: \(s)") }
+            if httpResponse.statusCode == 401 { throw OpenAIError.unauthorized }
+            if httpResponse.statusCode == 429 { throw OpenAIError.rateLimitExceeded }
+            throw OpenAIError.apiError(statusCode: httpResponse.statusCode)
+        }
+
         do {
-            let jsonData = try JSONSerialization.data(withJSONObject: requestBody)
-            request.httpBody = jsonData
-            
-            print("OpenAI Service: Sending request to OpenAI API")
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                print("OpenAI Service Error: Invalid response type")
-                throw OpenAIError.invalidResponse
-            }
-            
-            print("OpenAI Service: Received response with status code: \(httpResponse.statusCode)")
-            
-            if httpResponse.statusCode == 401 {
-                print("OpenAI Service Error: Unauthorized - Invalid API key")
-                throw OpenAIError.unauthorized
-            } else if httpResponse.statusCode == 429 {
-                print("OpenAI Service Error: Rate limit exceeded")
-                throw OpenAIError.rateLimitExceeded
-            } else if httpResponse.statusCode != 200 {
-                print("OpenAI Service Error: API error with status code \(httpResponse.statusCode)")
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("Response: \(responseString)")
-                }
-                throw OpenAIError.apiError(statusCode: httpResponse.statusCode)
-            }
-            
-            let decoder = JSONDecoder()
-            do {
-                let result = try decoder.decode(OpenAIResponse.self, from: data)
-                
-                guard let content = result.choices.first?.message.content else {
-                    print("OpenAI Service Error: No content in response")
-                    throw OpenAIError.noResponseContent
-                }
-                
-                print("OpenAI Service: Successfully received corrected text")
-                return content
-            } catch {
-                print("OpenAI Service Error: JSON decoding error - \(error.localizedDescription)")
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("Response: \(responseString)")
-                }
-                throw OpenAIError.invalidResponse
-            }
-        } catch let error as OpenAIError {
-            throw error
+            let result = try JSONDecoder().decode(OpenAIResponsesResult.self, from: data)
+            if let corrected = result.output_text ?? result.first_output_text { return corrected }
+            if let s = String(data: data, encoding: .utf8) { print("200 but no text. Raw: \(s)") }
+            throw OpenAIError.noResponseContent
         } catch {
-            print("OpenAI Service Error: Network error - \(error.localizedDescription)")
-            throw OpenAIError.networkError(error)
+            if let s = String(data: data, encoding: .utf8) { print("Decode error: \(error). Raw: \(s)") }
+            throw OpenAIError.invalidResponse
         }
     }
 }
@@ -127,27 +95,43 @@ enum OpenAIError: Error, LocalizedError {
     }
 }
 
-struct OpenAIResponse: Decodable {
-    let id: String
-    let object: String
-    let created: Int
-    let model: String
-    let choices: [Choice]
-    
-    struct Choice: Decodable {
-        let index: Int
-        let message: Message
-        let finishReason: String
-        
-        enum CodingKeys: String, CodingKey {
-            case index
-            case message
-            case finishReason = "finish_reason"
+// Responses API decoding
+struct OpenAIResponsesResult: Decodable {
+    let output_text: String?
+    let output: [OutputItem]?
+
+    var first_output_text: String? {
+        guard let items = output else { return nil }
+        for item in items {
+            guard item.type == "message", let parts = item.content else { continue }
+            for c in parts {
+                if c.type == "output_text" || c.type == "text" {
+                    if let v = c.text?.value { return v }
+                }
+            }
         }
+        return nil
     }
-    
-    struct Message: Decodable {
-        let role: String
-        let content: String
+
+    struct OutputItem: Decodable {
+        struct ContentItem: Decodable {
+            struct TextValueOrObject: Decodable {
+                struct TextObject: Decodable { let value: String }
+                let value: String?
+                init(from decoder: Decoder) throws {
+                    let c = try decoder.singleValueContainer()
+                    if let s = try? c.decode(String.self) { self.value = s }
+                    else if let o = try? c.decode(TextObject.self) { self.value = o.value }
+                    else { self.value = nil }
+                }
+            }
+            let type: String
+            let text: TextValueOrObject?
+        }
+        let id: String?
+        let type: String
+        let status: String?
+        let role: String?
+        let content: [ContentItem]?
     }
-} 
+}
