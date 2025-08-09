@@ -244,6 +244,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                  guard pastePerformed else {
                     print("Warning: Failed to perform AX Paste action. Falling back to CGEvent simulation.")
                     simulatePasteKeypress() // Fallback paste
+                    // Give the target app time to read from the clipboard before we restore it
+                    try await Task.sleep(nanoseconds: 200_000_000)
+                    success = true
+                    print("Step 9: Defer will restore original clipboard.")
                     return
                 }
 

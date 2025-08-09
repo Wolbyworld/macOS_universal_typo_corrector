@@ -36,7 +36,7 @@ class OpenAIService {
             "model": model,
             "instructions": systemPrompt,
             "input": text,
-            "max_output_tokens": 256,
+            "max_output_tokens": 4000,
             // Known-good shape for plain text output
             "text": [
                 "format": ["type": "text"]
