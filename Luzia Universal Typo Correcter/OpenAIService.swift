@@ -85,7 +85,22 @@ class OpenAIService {
         // Parse success body
         do {
             let result = try JSONDecoder().decode(OpenAIResponsesResult.self, from: data)
-            if let corrected = result.output_text ?? result.first_output_text { return corrected }
+            if let corrected = result.output_text ?? result.first_output_text {
+                // Log success (first try)
+                let usage = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+                let usageDict = usage?["usage"] as? [String: Any]
+                let tokensIn = usageDict?["input_tokens"] as? Int ?? 0
+                let tokensOut = usageDict?["output_tokens"] as? Int ?? 0
+                let effectiveReasoning = isReasoningSupported(for: model) ? reasoningEffortAPI : nil
+                EvalLogger.shared.log(prompt: text,
+                                      completion: corrected,
+                                      systemPrompt: systemPrompt,
+                                      model: model,
+                                      tokensIn: tokensIn,
+                                      tokensOut: tokensOut,
+                                      reasoningEffort: effectiveReasoning)
+                return corrected
+            }
 
             // No text returned: inspect for incomplete due to max_output_tokens. Retry once without reasoning if we included it.
             if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -102,7 +117,21 @@ class OpenAIService {
                     throw OpenAIError.apiError(statusCode: retryResp.statusCode)
                 }
                 let retryResult = try JSONDecoder().decode(OpenAIResponsesResult.self, from: retryData)
-                if let corrected = retryResult.output_text ?? retryResult.first_output_text { return corrected }
+                if let corrected = retryResult.output_text ?? retryResult.first_output_text {
+                    // Log success (retry path)
+                    let usage = (try? JSONSerialization.jsonObject(with: retryData)) as? [String: Any]
+                    let usageDict = usage?["usage"] as? [String: Any]
+                    let tokensIn = usageDict?["input_tokens"] as? Int ?? 0
+                    let tokensOut = usageDict?["output_tokens"] as? Int ?? 0
+                    EvalLogger.shared.log(prompt: text,
+                                          completion: corrected,
+                                          systemPrompt: systemPrompt,
+                                          model: model,
+                                          tokensIn: tokensIn,
+                                          tokensOut: tokensOut,
+                                          reasoningEffort: nil)
+                    return corrected
+                }
                 if let s = String(data: retryData, encoding: .utf8) { print("200 but no text after retry. Raw: \(s)") }
                 throw OpenAIError.noResponseContent
             }
