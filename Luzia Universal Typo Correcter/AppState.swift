@@ -19,7 +19,7 @@ class AppState: ObservableObject {
     @Published var reasoningEffort: String = "minimum"
 
     // Available choices
-    let availableModels = ["gpt-5-mini", "gpt-5", "gpt-5-nano"]
+    let availableModels = ["gpt-5-mini", "gpt-5", "gpt-5-nano", "gpt-4.1","gpt-4.1-mini"]
 
     private var cancellables = Set<AnyCancellable>()
 
