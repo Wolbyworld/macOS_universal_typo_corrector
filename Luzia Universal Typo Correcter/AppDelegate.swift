@@ -17,6 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var isProcessing = false
     public var appState = AppState()
     private var cancellables = Set<AnyCancellable>()
+    private var lastSimulatedPasteAt: Date?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Ensure app behaves as agent (LSUIElement now properly set in build settings)
@@ -238,6 +239,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 
                 print("Step 6: Received corrected text: '\(correctedText)'")
                 clipboardManager.setClipboardText(correctedText)
+                // Dynamic pre-paste delay to give host app time to observe new pasteboard contents
+                let isLong = correctedText.count > 120
+                let prePasteDelayNs: UInt64 = isLong ? 150_000_000 : 50_000_000
+                try await Task.sleep(nanoseconds: prePasteDelayNs)
                 
                 print("Step 7: Performing AX Paste action")
                 let pastePerformed = performAccessibilityAction(kAXPressAction, forMenuItem: "Paste", inMenu: "Edit")
@@ -250,9 +255,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                                            statusCode: nil,
                                            reason: "ax_failure",
                                            details: "menubar not found")
-                    simulatePasteKeypress() // Fallback paste
-                    // Give the target app time to read from the clipboard before we restore it
-                    try await Task.sleep(nanoseconds: 200_000_000)
+                    // CGEvent fallback paste: single paste with cooldown and robust delay
+                    let now = Date()
+                    if let last = lastSimulatedPasteAt, now.timeIntervalSince(last) < 1.0 {
+                        print("Skipping duplicate fallback paste due to cooldown")
+                    } else {
+                        simulatePasteKeypress()
+                        lastSimulatedPasteAt = now
+                    }
+                    let postCGDelayNs: UInt64 = isLong ? 800_000_000 : 300_000_000
+                    try await Task.sleep(nanoseconds: postCGDelayNs)
                     // Restore original clipboard after successful paste fallback
                     try await clipboardManager.restoreOriginalClipboardIfNeeded()
                     success = true
@@ -261,7 +273,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 }
 
                 print("Step 8: Waiting briefly after paste action")
-                try await Task.sleep(nanoseconds: 200_000_000)
+                let postAXDelayNs: UInt64 = isLong ? 800_000_000 : 300_000_000
+                try await Task.sleep(nanoseconds: postAXDelayNs)
 
                 // Restore original clipboard after successful AX paste
                 try await clipboardManager.restoreOriginalClipboardIfNeeded()
