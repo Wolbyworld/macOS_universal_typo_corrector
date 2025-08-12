@@ -72,6 +72,13 @@ class OpenAIService {
 
         // If 400 and error indicates reasoning unsupported, retry once without reasoning
         if httpResponse.statusCode == 400, let s = String(data: data, encoding: .utf8), s.contains("reasoning.effort") {
+            ErrorLogger.shared.log(stage: "responses_400",
+                                   model: model,
+                                   reasoningEffort: reasoningEffortAPI,
+                                   inputLength: text.count,
+                                   statusCode: 400,
+                                   reason: "unsupported_reasoning",
+                                   details: String(s.prefix(200)))
             (data, httpResponse) = try await tryOnce(includeReasoning: false)
         }
 
@@ -109,11 +116,25 @@ class OpenAIService {
                let incomplete = obj["incomplete_details"] as? [String: Any],
                let reason = incomplete["reason"] as? String,
                reason == "max_output_tokens" {
+                ErrorLogger.shared.log(stage: "responses_incomplete",
+                                       model: model,
+                                       reasoningEffort: reasoningEffortAPI,
+                                       inputLength: text.count,
+                                       statusCode: 200,
+                                       reason: "max_output_tokens",
+                                       details: nil)
                 print("200 incomplete due to max_output_tokens; retrying without reasoning once")
                 let retry = try await tryOnce(includeReasoning: false)
                 let retryData = retry.0
                 let retryResp = retry.1
                 guard retryResp.statusCode == 200 else {
+                    ErrorLogger.shared.log(stage: "responses_retry_non200",
+                                           model: model,
+                                           reasoningEffort: nil,
+                                           inputLength: text.count,
+                                           statusCode: retryResp.statusCode,
+                                           reason: "retry_failed",
+                                           details: nil)
                     throw OpenAIError.apiError(statusCode: retryResp.statusCode)
                 }
                 let retryResult = try JSONDecoder().decode(OpenAIResponsesResult.self, from: retryData)

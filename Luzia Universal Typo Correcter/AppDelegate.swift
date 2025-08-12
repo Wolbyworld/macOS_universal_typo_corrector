@@ -243,6 +243,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 let pastePerformed = performAccessibilityAction(kAXPressAction, forMenuItem: "Paste", inMenu: "Edit")
                 guard pastePerformed else {
                     print("Warning: Failed to perform AX Paste action. Falling back to CGEvent simulation.")
+                    ErrorLogger.shared.log(stage: "ax_paste_failed",
+                                           model: appState.selectedModel,
+                                           reasoningEffort: UserDefaults.standard.string(forKey: "reasoningEffort"),
+                                           inputLength: text.count,
+                                           statusCode: nil,
+                                           reason: "ax_failure",
+                                           details: "menubar not found")
                     simulatePasteKeypress() // Fallback paste
                     // Give the target app time to read from the clipboard before we restore it
                     try await Task.sleep(nanoseconds: 200_000_000)
