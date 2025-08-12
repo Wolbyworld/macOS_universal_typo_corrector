@@ -241,21 +241,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 
                 print("Step 7: Performing AX Paste action")
                 let pastePerformed = performAccessibilityAction(kAXPressAction, forMenuItem: "Paste", inMenu: "Edit")
-                 guard pastePerformed else {
+                guard pastePerformed else {
                     print("Warning: Failed to perform AX Paste action. Falling back to CGEvent simulation.")
                     simulatePasteKeypress() // Fallback paste
                     // Give the target app time to read from the clipboard before we restore it
                     try await Task.sleep(nanoseconds: 200_000_000)
+                    // Restore original clipboard after successful paste fallback
+                    try await clipboardManager.restoreOriginalClipboardIfNeeded()
                     success = true
-                    print("Step 9: Defer will restore original clipboard.")
+                    print("Step 9: Clipboard restored after fallback paste.")
                     return
                 }
 
                 print("Step 8: Waiting briefly after paste action")
                 try await Task.sleep(nanoseconds: 200_000_000)
 
+                // Restore original clipboard after successful AX paste
+                try await clipboardManager.restoreOriginalClipboardIfNeeded()
                 success = true
-                print("Step 9: Defer will restore original clipboard.")
+                print("Step 9: Clipboard restored after paste.")
             } catch {
                 print("Error during text correction process: \(error.localizedDescription)")
                 showNotification("Error", error.localizedDescription)
