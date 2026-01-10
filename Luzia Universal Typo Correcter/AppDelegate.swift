@@ -97,7 +97,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Create new preferences window with delegate to restore .accessory on close
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 500),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -257,7 +257,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 clipboardManager.setClipboardText(correctedText)
                 // Dynamic pre-paste delay to give host app time to observe new pasteboard contents
                 let isLong = correctedText.count > 120
-                let prePasteDelayNs: UInt64 = isLong ? 150_000_000 : 50_000_000
+                let prePasteDelayMs = isLong ? appState.prePasteDelayLong : appState.prePasteDelayShort
+                let prePasteDelayNs: UInt64 = UInt64(prePasteDelayMs) * 1_000_000
+                print("Using pre-paste delay: \(prePasteDelayMs)ms")
                 try await Task.sleep(nanoseconds: prePasteDelayNs)
                 
                 print("Step 7: Performing AX Paste action")
@@ -279,7 +281,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                         simulatePasteKeypress()
                         lastSimulatedPasteAt = now
                     }
-                    let postCGDelayNs: UInt64 = isLong ? 800_000_000 : 300_000_000
+                    let postPasteDelayMs = isLong ? appState.postPasteDelayLong : appState.postPasteDelayShort
+                    let postCGDelayNs: UInt64 = UInt64(postPasteDelayMs) * 1_000_000
+                    print("Using post-paste delay (CGEvent fallback): \(postPasteDelayMs)ms")
                     try await Task.sleep(nanoseconds: postCGDelayNs)
                     // Restore original clipboard after successful paste fallback
                     try await clipboardManager.restoreOriginalClipboardIfNeeded()
@@ -289,7 +293,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 }
 
                 print("Step 8: Waiting briefly after paste action")
-                let postAXDelayNs: UInt64 = isLong ? 800_000_000 : 300_000_000
+                let postPasteDelayMs = isLong ? appState.postPasteDelayLong : appState.postPasteDelayShort
+                let postAXDelayNs: UInt64 = UInt64(postPasteDelayMs) * 1_000_000
+                print("Using post-paste delay (AX success): \(postPasteDelayMs)ms")
                 try await Task.sleep(nanoseconds: postAXDelayNs)
 
                 // Restore original clipboard after successful AX paste

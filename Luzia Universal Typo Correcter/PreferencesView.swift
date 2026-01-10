@@ -141,6 +141,142 @@ struct PreferencesView: View {
                 Button("OK", role: .cancel) {}
             }
             
+            // Advanced Tab
+            Form {
+                Section("Timing Settings") {
+                    Text("Adjust delays to optimize latency. Lower values = faster, but may fail on slow apps.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(nil)
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Pre-Paste Delay")
+                            .font(.headline)
+                        Text("Time between writing to clipboard and pasting")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack {
+                            Text("Short (<120 chars):")
+                                .frame(width: 140, alignment: .leading)
+                            Slider(value: Binding(
+                                get: { Double(appState.prePasteDelayShort) },
+                                set: { appState.prePasteDelayShort = Int($0) }
+                            ), in: 0...200, step: 5)
+                            Text("\(appState.prePasteDelayShort)ms")
+                                .frame(width: 55, alignment: .trailing)
+                                .foregroundColor(.secondary)
+                                .font(.system(.body, design: .monospaced))
+                        }
+
+                        HStack {
+                            Text("Long (≥120 chars):")
+                                .frame(width: 140, alignment: .leading)
+                            Slider(value: Binding(
+                                get: { Double(appState.prePasteDelayLong) },
+                                set: { appState.prePasteDelayLong = Int($0) }
+                            ), in: 0...200, step: 5)
+                            Text("\(appState.prePasteDelayLong)ms")
+                                .frame(width: 55, alignment: .trailing)
+                                .foregroundColor(.secondary)
+                                .font(.system(.body, design: .monospaced))
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Post-Paste Delay")
+                            .font(.headline)
+                        Text("Wait after paste before restoring clipboard")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack {
+                            Text("Short (<120 chars):")
+                                .frame(width: 140, alignment: .leading)
+                            Slider(value: Binding(
+                                get: { Double(appState.postPasteDelayShort) },
+                                set: { appState.postPasteDelayShort = Int($0) }
+                            ), in: 0...1000, step: 10)
+                            Text("\(appState.postPasteDelayShort)ms")
+                                .frame(width: 55, alignment: .trailing)
+                                .foregroundColor(.secondary)
+                                .font(.system(.body, design: .monospaced))
+                        }
+
+                        HStack {
+                            Text("Long (≥120 chars):")
+                                .frame(width: 140, alignment: .leading)
+                            Slider(value: Binding(
+                                get: { Double(appState.postPasteDelayLong) },
+                                set: { appState.postPasteDelayLong = Int($0) }
+                            ), in: 0...1000, step: 10)
+                            Text("\(appState.postPasteDelayLong)ms")
+                                .frame(width: 55, alignment: .trailing)
+                                .foregroundColor(.secondary)
+                                .font(.system(.body, design: .monospaced))
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Presets")
+                            .font(.headline)
+
+                        VStack(spacing: 8) {
+                            HStack(spacing: 8) {
+                                Button("Conservative") {
+                                    appState.prePasteDelayShort = 30
+                                    appState.prePasteDelayLong = 80
+                                    appState.postPasteDelayShort = 150
+                                    appState.postPasteDelayLong = 400
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button("Balanced") {
+                                    appState.prePasteDelayShort = 20
+                                    appState.prePasteDelayLong = 50
+                                    appState.postPasteDelayShort = 100
+                                    appState.postPasteDelayLong = 250
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button("Aggressive") {
+                                    appState.prePasteDelayShort = 10
+                                    appState.prePasteDelayLong = 30
+                                    appState.postPasteDelayShort = 50
+                                    appState.postPasteDelayLong = 100
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button("Original") {
+                                    appState.prePasteDelayShort = 50
+                                    appState.prePasteDelayLong = 150
+                                    appState.postPasteDelayShort = 300
+                                    appState.postPasteDelayLong = 800
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+
+                        Text("Conservative: Safe default • Balanced: Good speed • Aggressive: Fastest")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .tabItem {
+                Label("Advanced", systemImage: "slider.horizontal.3")
+            }
+
             // About Tab
             VStack(spacing: 20) {
                 Image(systemName: "textformat.abc.dottedunderline")
@@ -173,6 +309,6 @@ struct PreferencesView: View {
             }
         }
         .padding()
-        .frame(width: 500, height: 400)
+        .frame(width: 600, height: 500)
     }
 } 

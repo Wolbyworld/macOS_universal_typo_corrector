@@ -67,8 +67,9 @@ class OpenAIService {
             return (data, httpResponse)
         }
 
-        // First attempt: include reasoning only if supported
-        var (data, httpResponse) = try await tryOnce(includeReasoning: true)
+        // First attempt: only include reasoning if model actually supports it
+        let shouldUseReasoning = isReasoningSupported(for: model) && reasoningEffortAPI != nil
+        var (data, httpResponse) = try await tryOnce(includeReasoning: shouldUseReasoning)
 
         // If 400 and error indicates reasoning unsupported, retry once without reasoning
         if httpResponse.statusCode == 400, let s = String(data: data, encoding: .utf8), s.contains("reasoning.effort") {

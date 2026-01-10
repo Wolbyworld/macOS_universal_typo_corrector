@@ -39,6 +39,12 @@ class AppState: ObservableObject {
     @Published var openOnStartup: Bool = false
     @Published var reasoningEffort: String = "minimum"
 
+    // Advanced timing settings (in milliseconds)
+    @Published var prePasteDelayShort: Int = 30
+    @Published var prePasteDelayLong: Int = 80
+    @Published var postPasteDelayShort: Int = 150
+    @Published var postPasteDelayLong: Int = 400
+
     // Available choices
     let availableModels = ["gpt-5-mini", "gpt-5", "gpt-5-nano", "gpt-4.1","gpt-4.1-mini"]
 
@@ -54,6 +60,19 @@ class AppState: ObservableObject {
         self.globalShortcut = UserDefaults.standard.string(forKey: "globalShortcut") ?? "⇧⌘G"
         self.openOnStartup = UserDefaults.standard.bool(forKey: "openOnStartup")
         self.reasoningEffort = UserDefaults.standard.string(forKey: "reasoningEffort") ?? "minimum"
+
+        // Load advanced timing settings (defaults: conservative Phase 1 values)
+        self.prePasteDelayShort = UserDefaults.standard.integer(forKey: "prePasteDelayShort")
+        if self.prePasteDelayShort == 0 { self.prePasteDelayShort = 30 } // Default if not set
+
+        self.prePasteDelayLong = UserDefaults.standard.integer(forKey: "prePasteDelayLong")
+        if self.prePasteDelayLong == 0 { self.prePasteDelayLong = 80 }
+
+        self.postPasteDelayShort = UserDefaults.standard.integer(forKey: "postPasteDelayShort")
+        if self.postPasteDelayShort == 0 { self.postPasteDelayShort = 150 }
+
+        self.postPasteDelayLong = UserDefaults.standard.integer(forKey: "postPasteDelayLong")
+        if self.postPasteDelayLong == 0 { self.postPasteDelayLong = 400 }
 
         if let data = UserDefaults.standard.data(forKey: "excludedApps"),
            let decoded = try? JSONDecoder().decode([String].self, from: data) {
@@ -97,6 +116,22 @@ class AppState: ObservableObject {
 
         $reasoningEffort.sink { newValue in
             UserDefaults.standard.set(newValue, forKey: "reasoningEffort")
+        }.store(in: &cancellables)
+
+        $prePasteDelayShort.sink { newValue in
+            UserDefaults.standard.set(newValue, forKey: "prePasteDelayShort")
+        }.store(in: &cancellables)
+
+        $prePasteDelayLong.sink { newValue in
+            UserDefaults.standard.set(newValue, forKey: "prePasteDelayLong")
+        }.store(in: &cancellables)
+
+        $postPasteDelayShort.sink { newValue in
+            UserDefaults.standard.set(newValue, forKey: "postPasteDelayShort")
+        }.store(in: &cancellables)
+
+        $postPasteDelayLong.sink { newValue in
+            UserDefaults.standard.set(newValue, forKey: "postPasteDelayLong")
         }.store(in: &cancellables)
     }
 
