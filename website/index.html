@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luzia - Your AI Writing Assistant for macOS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        /* Animated gradient background */
+        .gradient-bg {
+            background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #4facfe);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-content {
+            max-width: 800px;
+            z-index: 10;
+            animation: fadeInUp 1s ease;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .hero h1 {
+            font-size: 4rem;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 1.5rem;
+            text-shadow: 0 2px 20px rgba(0,0,0,0.2);
+            line-height: 1.2;
+        }
+
+        .hero h1 .logo-icon {
+            font-size: 4.5rem;
+            vertical-align: middle;
+        }
+
+        .hero p {
+            font-size: 1.5rem;
+            color: rgba(255,255,255,0.95);
+            margin-bottom: 2rem;
+            text-shadow: 0 1px 10px rgba(0,0,0,0.15);
+        }
+
+        .hero-demo {
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            margin: 3rem auto;
+            max-width: 600px;
+            border: 1px solid rgba(255,255,255,0.2);
+            animation: pulse 2s ease infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+
+        .demo-text {
+            font-size: 1.2rem;
+            color: white;
+            margin-bottom: 1rem;
+            font-style: italic;
+        }
+
+        .demo-arrow {
+            font-size: 2rem;
+            color: white;
+            margin: 1rem 0;
+        }
+
+        .demo-corrected {
+            font-size: 1.2rem;
+            color: #4fffb0;
+            font-weight: 600;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            padding: 1rem 2.5rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: white;
+            color: #667eea;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid white;
+        }
+
+        .btn-secondary:hover {
+            background: white;
+            color: #667eea;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 6rem 2rem;
+            background: #f8f9fa;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            color: #2d3748;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            font-size: 1.3rem;
+            color: #718096;
+            margin-bottom: 4rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+
+        .feature-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #2d3748;
+        }
+
+        .feature-card p {
+            color: #718096;
+            font-size: 1.1rem;
+            line-height: 1.7;
+        }
+
+        /* How it Works */
+        .how-it-works {
+            padding: 6rem 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 3rem;
+            margin-top: 4rem;
+        }
+
+        .step {
+            text-align: center;
+            position: relative;
+        }
+
+        .step-number {
+            width: 80px;
+            height: 80px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 800;
+            margin: 0 auto 1.5rem;
+            border: 3px solid white;
+        }
+
+        .step h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .step p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        /* Demo Visual */
+        .demo-visual {
+            padding: 6rem 2rem;
+            background: white;
+        }
+
+        .demo-window {
+            max-width: 800px;
+            margin: 3rem auto;
+            background: #1e1e1e;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .window-header {
+            background: #323232;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .window-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot-red { background: #ff5f56; }
+        .dot-yellow { background: #ffbd2e; }
+        .dot-green { background: #27c93f; }
+
+        .window-content {
+            padding: 2rem;
+            font-family: 'Monaco', monospace;
+            font-size: 1.1rem;
+            color: #d4d4d4;
+            line-height: 2;
+        }
+
+        .text-error {
+            color: #f48771;
+            text-decoration: line-through;
+        }
+
+        .text-correct {
+            color: #4fffb0;
+            font-weight: 600;
+        }
+
+        .shortcut {
+            display: inline-block;
+            background: rgba(255,255,255,0.1);
+            padding: 0.3rem 0.8rem;
+            border-radius: 5px;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-weight: 600;
+            color: #ffd700;
+        }
+
+        /* Pricing */
+        .pricing {
+            padding: 6rem 2rem;
+            background: #f8f9fa;
+        }
+
+        .pricing-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            max-width: 1000px;
+            margin: 3rem auto 0;
+        }
+
+        .pricing-card {
+            background: white;
+            padding: 3rem 2rem;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            text-align: center;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+
+        .pricing-card.featured {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .pricing-badge {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #4fffb0;
+            color: #1e1e1e;
+            padding: 0.5rem 1.5rem;
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .pricing-card h3 {
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+        }
+
+        .pricing-price {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin: 1.5rem 0;
+        }
+
+        .pricing-price small {
+            font-size: 1.2rem;
+            font-weight: 400;
+        }
+
+        .pricing-features {
+            list-style: none;
+            margin: 2rem 0;
+            text-align: left;
+        }
+
+        .pricing-features li {
+            padding: 0.8rem 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .pricing-card.featured .pricing-features li {
+            border-bottom-color: rgba(255,255,255,0.2);
+        }
+
+        .pricing-features li:before {
+            content: "✓";
+            color: #4fffb0;
+            font-weight: 800;
+            margin-right: 1rem;
+            font-size: 1.3rem;
+        }
+
+        /* Footer */
+        .footer {
+            background: #1e1e1e;
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+        }
+
+        .footer a {
+            color: #4fffb0;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero p {
+                font-size: 1.2rem;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .cta-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+
+        /* Floating elements animation */
+        .floating {
+            animation: floating 3s ease-in-out infinite;
+        }
+
+        @keyframes floating {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .kbd {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 5px;
+            padding: 0.2rem 0.5rem;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <section class="hero gradient-bg">
+        <div class="hero-content">
+            <h1 class="floating">
+                <span class="logo-icon">✨</span><br>
+                Luzia
+            </h1>
+            <p>Your AI-powered writing assistant for macOS.<br>Fix typos instantly, anywhere you type.</p>
+
+            <div class="hero-demo">
+                <div class="demo-text">
+                    "<span class="text-error">The app is realy usefull</span> for evry day writting"
+                </div>
+                <div class="demo-arrow">↓ <span class="kbd">⇧⌘G</span> ↓</div>
+                <div class="demo-corrected">
+                    "The app is really useful for everyday writing"
+                </div>
+            </div>
+
+            <div class="cta-buttons">
+                <a href="#pricing" class="btn btn-primary">Get Luzia</a>
+                <a href="#how-it-works" class="btn btn-secondary">See How It Works</a>
+            </div>
+
+            <p style="margin-top: 2rem; font-size: 1rem; opacity: 0.8;">
+                macOS 11.0+ • Works in every app • Powered by OpenAI
+            </p>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <div class="container">
+            <h2 class="section-title">Why You'll Love Luzia</h2>
+            <p class="section-subtitle">Powerful AI, beautifully simple</p>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Lightning Fast</h3>
+                    <p>Correct your text in under a second. Optimized delays and smart caching make corrections feel instant.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🌍</div>
+                    <h3>Works Everywhere</h3>
+                    <p>Gmail, Slack, Notion, Xcode, Terminal—if you can type there, Luzia works there. No exceptions.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Context-Aware</h3>
+                    <p>Use inline commands like <code>&lt;&lt;make this formal&gt;&gt;</code> to control exactly how your text is corrected.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3>Privacy First</h3>
+                    <p>Use your own OpenAI API key. Your text never touches our servers. You're in complete control.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">⌨️</div>
+                    <h3>One Shortcut</h3>
+                    <p>Select text, press <span class="kbd">⇧⌘G</span>, done. No menus, no clicking, no interruptions to your flow.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <h3>Formatting Preserved</h3>
+                    <p>Bold, italic, links—Luzia keeps your formatting intact while fixing your typos.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🧠</div>
+                    <h3>GPT-5 Powered</h3>
+                    <p>Choose from GPT-5, GPT-5-mini, or GPT-4.1. Adjust reasoning effort for speed or quality.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🎛️</div>
+                    <h3>Fully Customizable</h3>
+                    <p>Customize system prompts, timing delays, excluded apps, and more. Make Luzia work your way.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🌙</div>
+                    <h3>Lives in Menu Bar</h3>
+                    <p>Invisible until you need it. No Dock icon, no distractions. Just there when you need it.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="container">
+            <h2 class="section-title">How It Works</h2>
+            <p class="section-subtitle">Dead simple. Just three steps.</p>
+
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Select Your Text</h3>
+                    <p>Highlight any text in any app. Email, docs, chat—anywhere.</p>
+                </div>
+
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Press ⇧⌘G</h3>
+                    <p>Luzia copies, corrects, and pastes in under a second.</p>
+                </div>
+
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Keep Writing</h3>
+                    <p>Your text is perfect. Your clipboard is restored. You're done.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Demo Visual -->
+    <section class="demo-visual">
+        <div class="container">
+            <h2 class="section-title">See It In Action</h2>
+            <p class="section-subtitle">Real corrections, real fast</p>
+
+            <div class="demo-window">
+                <div class="window-header">
+                    <div class="window-dot dot-red"></div>
+                    <div class="window-dot dot-yellow"></div>
+                    <div class="window-dot dot-green"></div>
+                </div>
+                <div class="window-content">
+                    <div style="margin-bottom: 2rem;">
+                        <span style="color: #888;">// Before</span><br>
+                        I'll be ther at 10PM madrid tim <span class="text-error">&lt;&lt;add brazil time&gt;&gt;</span>
+                    </div>
+                    <div style="margin-bottom: 2rem; opacity: 0.5;">
+                        <span class="shortcut">⇧⌘G</span> → Processing...
+                    </div>
+                    <div>
+                        <span style="color: #888;">// After</span><br>
+                        <span class="text-correct">I'll be there at 10PM Madrid time (3PM Brazil time)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 3rem; color: #718096;">
+                <p style="font-size: 1.2rem;">
+                    ✓ Fixed typos ("ther" → "there")<br>
+                    ✓ Fixed capitalization ("madrid" → "Madrid")<br>
+                    ✓ Executed inline command (added Brazil time)<br>
+                    ✓ Removed command markers
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="pricing" id="pricing">
+        <div class="container">
+            <h2 class="section-title">Simple, Transparent Pricing</h2>
+            <p class="section-subtitle">One-time purchase. Yours forever.</p>
+
+            <div class="pricing-cards">
+                <div class="pricing-card">
+                    <h3>Free Trial</h3>
+                    <div class="pricing-price">$0</div>
+                    <ul class="pricing-features">
+                        <li>7 days full access</li>
+                        <li>All features included</li>
+                        <li>No credit card required</li>
+                        <li>See if Luzia fits your workflow</li>
+                    </ul>
+                    <a href="#" class="btn btn-secondary" style="width: 100%; margin-top: 1rem;">Start Free Trial</a>
+                </div>
+
+                <div class="pricing-card featured">
+                    <div class="pricing-badge">MOST POPULAR</div>
+                    <h3>Lifetime License</h3>
+                    <div class="pricing-price">$29<small></small></div>
+                    <ul class="pricing-features">
+                        <li>One-time payment</li>
+                        <li>Lifetime updates</li>
+                        <li>All future features</li>
+                        <li>Priority support</li>
+                        <li>Use on all your Macs</li>
+                    </ul>
+                    <a href="#" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Buy Now</a>
+                </div>
+
+                <div class="pricing-card">
+                    <h3>BYOK</h3>
+                    <div class="pricing-price">Free<small></small></div>
+                    <ul class="pricing-features">
+                        <li>Bring your own OpenAI key</li>
+                        <li>Pay only for API usage</li>
+                        <li>~$0.01 per 100 corrections</li>
+                        <li>Full privacy control</li>
+                    </ul>
+                    <a href="#" class="btn btn-secondary" style="width: 100%; margin-top: 1rem;">Download Free</a>
+                </div>
+            </div>
+
+            <p style="text-align: center; margin-top: 3rem; color: #718096;">
+                All purchases include a 30-day money-back guarantee. No questions asked.
+            </p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p style="font-size: 1.2rem; margin-bottom: 1rem;">
+                Built with ❤️ for writers, developers, and everyone who types.
+            </p>
+            <p>
+                <a href="#">Privacy Policy</a> •
+                <a href="#">Terms of Service</a> •
+                <a href="mailto:support@luzia.app">Contact</a>
+            </p>
+            <p style="margin-top: 2rem; opacity: 0.6; font-size: 0.9rem;">
+                © 2026 Luzia. macOS is a trademark of Apple Inc.
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // Add animation on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.animation = 'fadeInUp 0.6s ease forwards';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.feature-card, .step, .pricing-card').forEach(el => {
+            el.style.opacity = '0';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>
