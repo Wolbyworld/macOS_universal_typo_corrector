@@ -5,12 +5,13 @@ import UserNotifications
 import Accessibility
 import Combine
 
-class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSWindowDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSWindowDelegate, NSPopoverDelegate {
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var hotKey: HotKey?
     var prefWindowController: NSWindowController?
 
+    private var statusItemMenu: NSMenu?  // Store menu to restore after popover
     private var clipboardManager = ClipboardManager()
     private var openAIService = OpenAIService()
     private var sparkleUpdater: SparkleUpdater?
@@ -19,6 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     public var appState = AppState()
     private var cancellables = Set<AnyCancellable>()
     private var lastSimulatedPasteAt: Date?
+    private var hasAccessibilityPermissions = false  // Cache permission state
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Ensure app behaves as agent (LSUIElement now properly set in build settings)
@@ -34,20 +36,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Initialize Sparkle
         sparkleUpdater = SparkleUpdater()
         
-        // Check for accessibility permissions
+        // Check for accessibility permissions (prompt once on launch)
         let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-        let accessibilityEnabled = AXIsProcessTrustedWithOptions(options)
-        
-        if !accessibilityEnabled {
+        hasAccessibilityPermissions = AXIsProcessTrustedWithOptions(options)
+
+        if !hasAccessibilityPermissions {
             showNotification("Permissions Required", "Please grant Accessibility permissions in System Settings > Privacy & Security > Accessibility")
+        } else {
+            print("Accessibility permissions: GRANTED")
         }
         
         // Add menu items to enable preferences access
         setupMenu()
         
+        // Reconcile startup state on launch
+        startupManager.reconcileStartupState()
+
         // Setup startup behavior observer
         setupStartupObserver()
-        
+
         // Hide any main windows for agent app behavior
         hideMainWindows()
     }
@@ -74,8 +81,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         menu.addItem(NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-        
+
         statusItem.menu = menu
+        statusItemMenu = menu  // Store menu for later restoration
     }
     
     @objc private func selectModel(_ sender: NSMenuItem) {
@@ -138,6 +146,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         popover = NSPopover()
         popover.contentSize = NSSize(width: 300, height: 300)
         popover.behavior = .transient
+        popover.delegate = self  // Set delegate to handle popover close
         popover.contentViewController = NSHostingController(rootView: PopoverView().environmentObject(appState))
     }
     
@@ -363,10 +372,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     private func performAccessibilityAction(_ action: String, forMenuItem menuItemName: String, inMenu menuName: String) -> Bool {
-        guard AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary) else {
-            print("AX Error: Process not trusted. Prompting for permissions.")
-            // We prompted, but return false for now as it won't work immediately.
-            return false
+        // Check cached permission state first (no prompt)
+        if !hasAccessibilityPermissions {
+            // Double-check without prompting in case user granted permissions
+            hasAccessibilityPermissions = AXIsProcessTrusted()
+
+            if !hasAccessibilityPermissions {
+                print("AX Error: Process not trusted. Permissions not granted.")
+                return false
+            } else {
+                print("AX: Permissions detected as granted (cache updated)")
+            }
         }
 
         guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {
@@ -507,11 +523,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     
     private func setupStartupObserver() {
         print("AppDelegate: Setting up startup behavior observer")
-        
+
+        // Track previous value to only react to actual changes (not initial load)
+        var previousValue = appState.openOnStartup
+
         appState.$openOnStartup
-            .dropFirst() // Skip initial value to avoid triggering on app launch
             .sink { [weak self] isEnabled in
-                self?.handleStartupPreferenceChange(isEnabled)
+                // Only handle if value actually changed (user toggled, not initial load)
+                if isEnabled != previousValue {
+                    print("AppDelegate: Startup preference change detected: \(previousValue) -> \(isEnabled)")
+                    previousValue = isEnabled
+                    self?.handleStartupPreferenceChange(isEnabled)
+                } else {
+                    print("AppDelegate: Startup observer triggered with same value (\(isEnabled)), ignoring")
+                }
             }
             .store(in: &cancellables)
     }
@@ -539,6 +564,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             }
         }
          }
+
+    // MARK: - NSPopoverDelegate
+
+    func popoverDidClose(_ notification: Notification) {
+        // Restore menu when popover closes
+        print("AppDelegate: Popover closed, restoring menu")
+        statusItem.menu = statusItemMenu
+    }
 
     // MARK: - NSWindowDelegate
 

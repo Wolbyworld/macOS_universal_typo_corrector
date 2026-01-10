@@ -32,8 +32,8 @@ class ClipboardManager {
             }
             self.originalTypes = pasteboard.types
             
-            if !(self.originalItems?.isEmpty ?? true) {
-                 print("ClipboardManager: Saved \(self.originalItems!.count) clipboard items with \(pasteboard.types?.count ?? 0) types")
+            if let items = self.originalItems, !items.isEmpty {
+                 print("ClipboardManager: Saved \(items.count) clipboard items with \(pasteboard.types?.count ?? 0) types")
                  self.savedClipboardSuccessfully = true
             } else {
                  print("ClipboardManager: Failed to copy any data from clipboard items")
@@ -135,16 +135,19 @@ class ClipboardManager {
     
     func setClipboardText(_ text: String) {
         print("ClipboardManager: Setting clipboard text, length: \(text.count)")
-        
+
+        // CRITICAL: Get rich text BEFORE clearing clipboard
+        let originalRichText = getRichText()
+
         // Start a new pasteboard writing session
         pasteboard.clearContents()
-        
+
         // First set plain text (this always works)
         let success = pasteboard.setString(text, forType: .string)
         print("ClipboardManager: Set plain text result: \(success)")
-        
+
         // Try to preserve formatting
-        if let originalRichText = getRichText() {
+        if let originalRichText = originalRichText {
             print("ClipboardManager: Attempting to preserve rich text formatting")
             
             // Create attributed string from corrected plain text
@@ -152,10 +155,23 @@ class ClipboardManager {
                 
             if text.count > 0 && originalRichText.length > 0 {
                 // Apply attributes from the original text to the new text
-                 let range = NSRange(location: 0, length: min(text.count, originalRichText.length))
-                 originalRichText.enumerateAttributes(in: range, options: []) { attributes, range, _ in
-                     attributedString.addAttributes(attributes, range: range)
-                 }
+                // Use the full original range for enumeration
+                let originalRange = NSRange(location: 0, length: originalRichText.length)
+
+                originalRichText.enumerateAttributes(in: originalRange, options: []) { attributes, attrRange, _ in
+                    // Calculate the corresponding range in the new text
+                    // If new text is shorter, truncate; if longer, only format the overlapping part
+                    let newTextLength = attributedString.length
+                    let newRange = NSRange(
+                        location: min(attrRange.location, newTextLength),
+                        length: min(attrRange.length, max(0, newTextLength - attrRange.location))
+                    )
+
+                    // Only add attributes if the range is valid
+                    if newRange.location < newTextLength && newRange.length > 0 {
+                        attributedString.addAttributes(attributes, range: newRange)
+                    }
+                }
                 
                 // Try setting rich text formats
                 do {

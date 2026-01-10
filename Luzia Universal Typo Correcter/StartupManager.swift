@@ -2,8 +2,13 @@ import Foundation
 import ServiceManagement
 
 class StartupManager {
-    private let bundleIdentifier = Bundle.main.bundleIdentifier!
-    
+    private var bundleIdentifier: String {
+        guard let identifier = Bundle.main.bundleIdentifier else {
+            fatalError("CRITICAL: Bundle identifier is nil. Check Info.plist for CFBundleIdentifier key.")
+        }
+        return identifier
+    }
+
     enum StartupError: Error, LocalizedError {
         case registrationFailed
         case unregistrationFailed
@@ -106,8 +111,24 @@ class StartupManager {
     private func isStartupEnabledLegacy() -> Bool {
         // For legacy systems, we'll check if the app is in the login items list
         // This is a simplified check - in practice, this is harder to reliably determine
-        // with the legacy API, but for our use case it's sufficient to rely on our 
+        // with the legacy API, but for our use case it's sufficient to rely on our
         // UserDefaults state as the source of truth
         return UserDefaults.standard.bool(forKey: "openOnStartup")
+    }
+
+    // MARK: - State Reconciliation
+
+    /// Reconciles UserDefaults with actual system state on app launch
+    func reconcileStartupState() {
+        let userDefaultsState = UserDefaults.standard.bool(forKey: "openOnStartup")
+        let actualSystemState = isStartupEnabled()
+
+        if userDefaultsState != actualSystemState {
+            print("StartupManager: State mismatch detected. UserDefaults: \(userDefaultsState), System: \(actualSystemState)")
+            print("StartupManager: Syncing UserDefaults to match actual system state")
+            UserDefaults.standard.set(actualSystemState, forKey: "openOnStartup")
+        } else {
+            print("StartupManager: State is in sync. Startup enabled: \(actualSystemState)")
+        }
     }
 } 
