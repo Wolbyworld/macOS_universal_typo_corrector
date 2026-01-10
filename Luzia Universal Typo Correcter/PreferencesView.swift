@@ -14,11 +14,12 @@ struct PreferencesView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("OpenAI API Key")
                             .font(.headline)
+
                         TextField("Paste your API key here", text: $appState.apiKey)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.body, design: .monospaced))
-                            .disableAutocorrection(true)
-                            .textSelection(.enabled)
+                            .autocorrectionDisabled(true)
+                            .frame(minWidth: 400)
 
                         HStack {
                             Text("Status: \(appState.apiKey.isEmpty ? "Not set - API key required" : "Set (\(appState.apiKey.prefix(20))...)")")

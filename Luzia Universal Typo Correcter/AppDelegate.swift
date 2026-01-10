@@ -5,11 +5,12 @@ import UserNotifications
 import Accessibility
 import Combine
 
-class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSWindowDelegate {
     var statusItem: NSStatusItem!
     var popover: NSPopover!
     var hotKey: HotKey?
-    
+    var prefWindowController: NSWindowController?
+
     private var clipboardManager = ClipboardManager()
     private var openAIService = OpenAIService()
     private var sparkleUpdater: SparkleUpdater?
@@ -84,26 +85,41 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     @objc public func openPreferences() {
-        // For agent applications, avoid NSApp.activate to prevent Dock appearance
-        // Create preferences window directly
-        let prefWindowController = NSWindowController(
-            window: NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
-                styleMask: [.titled, .closable],
-                backing: .buffered,
-                defer: false
-            )
+        // Reuse existing window if available
+        if let existingWindow = prefWindowController?.window {
+            // CRITICAL: Change to .regular to enable Edit menu (Cut/Copy/Paste)
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+
+            existingWindow.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        // Create new preferences window with delegate to restore .accessory on close
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
         )
-        
-        prefWindowController.window?.center()
-        prefWindowController.window?.title = "Preferences"
-        prefWindowController.contentViewController = NSHostingController(
+
+        window.center()
+        window.title = "Preferences"
+        window.contentViewController = NSHostingController(
             rootView: PreferencesView().environmentObject(appState)
         )
-        
-        // Make window float above other windows and activate it
-        prefWindowController.window?.level = .floating
-        prefWindowController.window?.makeKeyAndOrderFront(nil)
+
+        // Set delegate to handle window close (restore .accessory policy)
+        window.delegate = self
+
+        prefWindowController = NSWindowController(window: window)
+
+        // CRITICAL: Change activation policy to .regular to enable Edit menu
+        // This allows standard Cut/Copy/Paste operations in text fields
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+
+        prefWindowController?.window?.makeKeyAndOrderFront(nil)
     }
     
     @objc private func checkForUpdates() {
@@ -517,4 +533,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             }
         }
          }
+
+    // MARK: - NSWindowDelegate
+
+    func windowWillClose(_ notification: Notification) {
+        // When preferences window closes, restore .accessory policy to hide from Dock
+        if notification.object as? NSWindow === prefWindowController?.window {
+            NSApp.setActivationPolicy(.accessory)
+            print("Preferences closed - restored .accessory activation policy")
+        }
+    }
 }
