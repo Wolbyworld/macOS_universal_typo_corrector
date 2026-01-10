@@ -11,9 +11,35 @@ struct PreferencesView: View {
             // General Tab
             Form {
                 Section("API Settings") {
-                    SecureField("OpenAI API Key", text: $appState.apiKey)
-                        .textFieldStyle(.roundedBorder)
-                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("OpenAI API Key")
+                            .font(.headline)
+                        TextField("Paste your API key here", text: $appState.apiKey)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.body, design: .monospaced))
+                            .disableAutocorrection(true)
+                            .textSelection(.enabled)
+
+                        HStack {
+                            Text("Status: \(appState.apiKey.isEmpty ? "Not set - API key required" : "Set (\(appState.apiKey.prefix(20))...)")")
+                                .font(.caption)
+                                .foregroundColor(appState.apiKey.isEmpty ? .red : .green)
+
+                            Spacer()
+
+                            if !appState.apiKey.isEmpty {
+                                Button("Clear") {
+                                    appState.apiKey = ""
+                                }
+                                .font(.caption)
+                            }
+                        }
+
+                        Text("Get your API key from: platform.openai.com/api-keys")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
                     Picker("Model", selection: $appState.selectedModel) {
                         ForEach(appState.availableModels, id: \.self) { model in
                             Text(model).tag(model)

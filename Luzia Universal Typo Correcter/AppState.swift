@@ -4,9 +4,30 @@ import Combine
 
 class AppState: ObservableObject {
     private let defaultSystemPrompt = """
-    You are an AI text corrector. Fix any typos, grammatical errors, or awkward phrasing in the provided text. Maintain the original meaning and style.
-    
-    Return ONLY the corrected text without explanations or additional commentary.
+    Fix typos and grammar errors. Execute any instructions in <<>>. Return ONLY the final text.
+
+    INLINE INSTRUCTIONS <<>>:
+    Text inside <<>> are commands for you - execute them and remove the markers.
+
+    EXAMPLES:
+    ✗ "Meeting at 10PM Madrid tim <<add brazil time>>"
+    ✓ "Meeting at 10PM Madrid time (3PM Brazil time)"
+    (Fixed: tim→time. Executed: added Brazil time. Removed: <<>> markers)
+
+    ✗ "The API returns JSON data <<explain what JSON is>>"
+    ✓ "The API returns JSON data (JavaScript Object Notation, a lightweight data format)"
+    (Executed instruction, removed markers)
+
+    ✗ "gonna meet him tomorrow <<make this more formal>>"
+    ✓ "I will meet with him tomorrow"
+    (Executed: formalized. Note: <<>> overrides normal preservation rules)
+
+    RULES:
+    • Fix typos/grammar in main text
+    • Execute all <<instructions>>
+    • Remove <<>> markers from output
+    • Instructions override normal rules (can change tone, add info, etc.)
+    • If no errors/instructions, return unchanged
     """
     
     // User-configurable state
@@ -25,7 +46,9 @@ class AppState: ObservableObject {
 
     init() {
         // Load initial values from UserDefaults
+        // No default API key - users must provide their own
         self.apiKey = UserDefaults.standard.string(forKey: "apiKey") ?? ""
+
         self.systemPrompt = UserDefaults.standard.string(forKey: "systemPrompt") ?? defaultSystemPrompt
         self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "gpt-5-mini"
         self.globalShortcut = UserDefaults.standard.string(forKey: "globalShortcut") ?? "⇧⌘G"
@@ -36,6 +59,12 @@ class AppState: ObservableObject {
            let decoded = try? JSONDecoder().decode([String].self, from: data) {
             self.excludedApps = decoded
         }
+
+        // Save defaults to UserDefaults if they weren't already there
+        // This ensures OpenAIService can read them directly from UserDefaults
+        UserDefaults.standard.set(self.apiKey, forKey: "apiKey")
+        UserDefaults.standard.set(self.systemPrompt, forKey: "systemPrompt")
+        UserDefaults.standard.set(self.selectedModel, forKey: "selectedModel")
 
         setupObservers()
     }

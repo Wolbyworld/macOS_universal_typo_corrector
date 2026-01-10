@@ -282,6 +282,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                 print("Step 9: Clipboard restored after paste.")
             } catch {
                 print("Error during text correction process: \(error.localizedDescription)")
+
+                // Log error to ErrorLogger
+                let errorReason: String
+                if let openAIError = error as? OpenAIError {
+                    switch openAIError {
+                    case .noApiKey:
+                        errorReason = "no_api_key"
+                    case .unauthorized:
+                        errorReason = "unauthorized"
+                    case .rateLimitExceeded:
+                        errorReason = "rate_limit"
+                    case .apiError(let statusCode):
+                        errorReason = "api_error_\(statusCode)"
+                    case .invalidResponse:
+                        errorReason = "invalid_response"
+                    case .noResponseContent:
+                        errorReason = "no_content"
+                    case .networkError:
+                        errorReason = "network_error"
+                    }
+                } else {
+                    errorReason = "unknown_error"
+                }
+
+                ErrorLogger.shared.log(stage: "correction_failed",
+                                       model: appState.selectedModel,
+                                       reasoningEffort: UserDefaults.standard.string(forKey: "reasoningEffort"),
+                                       inputLength: nil,
+                                       statusCode: nil,
+                                       reason: errorReason,
+                                       details: error.localizedDescription)
+
                 showNotification("Error", error.localizedDescription)
             }
         }
