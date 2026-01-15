@@ -74,7 +74,7 @@ struct PreferencesView: View {
 
                     Picker("Model", selection: $appState.selectedModel) {
                         ForEach(appState.availableModels, id: \.self) { model in
-                            Text(model).tag(model)
+                            Text(appState.displayName(for: model)).tag(model)
                         }
                     }
                 }
@@ -322,7 +322,7 @@ struct PreferencesView: View {
                 Text("Luzia Universal Typo Correcter")
                     .font(.title)
                 
-                Text("Version 1.0")
+                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown")")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
