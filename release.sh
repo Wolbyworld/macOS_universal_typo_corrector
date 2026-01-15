@@ -84,6 +84,35 @@ fi
 
 echo -e "${GREEN}   Build complete!${NC}"
 
+# Step 2b: Inject Sparkle configuration
+echo ""
+echo -e "${YELLOW}Step 2b: Injecting Sparkle configuration...${NC}"
+
+APP_PLIST="$BUILT_APP/Contents/Info.plist"
+
+/usr/libexec/PlistBuddy -c "Add :SUFeedURL string 'https://raw.githubusercontent.com/Wolbyworld/macOS_universal_typo_corrector/main/appcast.xml'" "$APP_PLIST" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Set :SUFeedURL 'https://raw.githubusercontent.com/Wolbyworld/macOS_universal_typo_corrector/main/appcast.xml'" "$APP_PLIST"
+
+/usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string '6GZWiKhcsOojOzy0S4PWEtOqVzmkD675xYRvAOq/7Kw='" "$APP_PLIST" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey '6GZWiKhcsOojOzy0S4PWEtOqVzmkD675xYRvAOq/7Kw='" "$APP_PLIST"
+
+echo -e "${GREEN}   Sparkle keys injected!${NC}"
+
+# Step 2c: Fix code signature (re-sign properly after plist changes)
+echo ""
+echo -e "${YELLOW}Step 2c: Re-signing app after plist modifications...${NC}"
+
+# Sign frameworks first (inside-out signing)
+codesign --force --sign - "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
+codesign --force --sign - "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
+codesign --force --sign - "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"
+codesign --force --sign - "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
+codesign --force --sign - "$BUILT_APP/Contents/Frameworks/Sparkle.framework"
+# Sign main app last
+codesign --force --sign - "$BUILT_APP"
+
+echo -e "${GREEN}   App re-signed!${NC}"
+
 # Step 3: Create releases directory and zip archive
 echo ""
 echo -e "${YELLOW}Step 3: Creating release archive...${NC}"
@@ -96,8 +125,9 @@ ZIP_PATH="$RELEASES_DIR/$ZIP_NAME"
 rm -f "$ZIP_PATH"
 
 # Create zip archive (Sparkle expects .app inside zip)
+# Use zip instead of ditto to exclude resource forks that cause signature issues
 cd "$PROJECT_DIR/build/Build/Products/Release"
-ditto -c -k --keepParent "$APP_NAME" "$ZIP_PATH"
+zip -r --symlinks "$ZIP_PATH" "$APP_NAME" -x "*.DS_Store" -x "*._*" -x "*.__*"
 cd "$PROJECT_DIR"
 
 ZIP_SIZE=$(stat -f%z "$ZIP_PATH")
