@@ -6,6 +6,20 @@
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
         <item>
+            <title>Version 3.0.0</title>
+            <description><![CDATA[OTA Update Test - version 3.0]]></description>
+            <pubDate>Wed, 15 Jan 2026 22:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Wolbyworld/macOS_universal_typo_corrector/releases/download/v3.0.0/Luzia-3.0.0.zip"
+                sparkle:version="300"
+                sparkle:shortVersionString="3.0.0"
+                sparkle:edSignature="B8F6hxcHxbAQM0GQg4FNKo8f6h0851p4w25c1caQPMDexiuBUalC/+1Sl/0thindnQOQfm9T1AITxeMyVvr8Aw=="
+                length="4842260"
+                type="application/octet-stream"
+            />
+            <sparkle:minimumSystemVersion>11.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Version 2.0.0</title>
             <description><![CDATA[Test OTA update - version 2.0]]></description>
             <pubDate>Wed, 15 Jan 2026 21:40:00 +0000</pubDate>
