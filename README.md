@@ -7,14 +7,16 @@ A lightweight macOS utility that corrects typos and grammatical errors in any te
 - 🔤 Universal text correction across any app
 - ⌨️ Global keyboard shortcut (⇧⌘G by default)
 - 🖋️ Preserves text formatting when possible
-- 🔒 Uses your own OpenAI API key
+- 🔒 Uses your own OpenAI API key OR company proxy
+- 🏢 Enterprise distribution support with pre-configured proxy
+- 🔐 Keychain integration for secure credential storage
 - ⚙️ Customizable system prompt
 - 🚫 Exclude apps where you don't want correction
 
 ## Requirements
 
 - macOS 11.0 or later
-- An OpenAI API key
+- An OpenAI API key (personal use) OR access to company proxy (enterprise deployment)
 
 ## Installation
 
@@ -43,11 +45,69 @@ This app is built with Swift and SwiftUI. To build from source:
 2. Open the project in Xcode
 3. Build and run
 
+### Standard Build (Personal Use)
+
+```bash
+./quick-deploy.sh
+```
+
+Builds and installs to `/Applications` for local testing.
+
+### Enterprise Distribution
+
+For company-wide deployment with pre-configured proxy:
+
+1. **Set up backend proxy** (optional):
+   - See `../universal_typo_backend/` for Flask backend
+   - Deploy to Heroku with rate limiting and analytics
+   - Get your proxy URL and shared secret
+
+2. **Create enterprise build**:
+   ```bash
+   # Copy template and add your secrets
+   cp build-enterprise.sh.template build-enterprise.sh
+   # Edit build-enterprise.sh with your proxy URL and secret
+   vim build-enterprise.sh
+
+   # Build enterprise DMG
+   ./build-enterprise.sh
+   ```
+
+3. **Distribute**:
+   - Upload `Luzia-Enterprise.dmg` to shared drive
+   - Employees drag app to Applications folder
+   - No API key configuration needed!
+
+**Security:**
+- Secrets stored in macOS Keychain (encrypted at rest)
+- Enterprise proxy secret XOR-obfuscated in app bundle
+- Backend enforces rate limiting (1000 req/hour default)
+
+### Build Scripts
+
+- `quick-deploy.sh` - Build and install standard version locally
+- `build-enterprise.sh` - Build enterprise DMG with pre-configured proxy
+- `create-dmg.sh` - Create DMG with drag-to-Applications UI
+
+## Enterprise Backend
+
+The app supports a Flask-based proxy backend for company-wide deployments:
+
+**Features:**
+- Centralized API key management (no individual keys needed)
+- Global rate limiting (prevents abuse)
+- Usage analytics and cost tracking
+- Postgres logging for all requests
+
+**Setup:**
+See the backend repository at `../universal_typo_backend/` or deploy your own Flask proxy.
+
 ## Privacy
 
-- Your text is sent to OpenAI for correction using your own API key
+- Your text is sent to OpenAI for correction using your own API key or company proxy
 - No data is stored by the app beyond your preferences
 - The app does not collect any analytics
+- Local logs stored in `~/Library/Application Support/Luzia/Evals/`
 
 ## License
 
