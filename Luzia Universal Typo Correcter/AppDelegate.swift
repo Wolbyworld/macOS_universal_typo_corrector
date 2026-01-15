@@ -187,6 +187,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         
         isProcessing = true
         animateStatusItem(true)
+        LoadingHUDManager.shared.show()
         print("Starting text correction process (using AX)")
         
         Task {
@@ -357,6 +358,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private func resetState() {
         isProcessing = false
         animateStatusItem(false)
+        LoadingHUDManager.shared.hide()
     }
     
     private func animateStatusItem(_ isProcessing: Bool) {
