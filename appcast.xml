@@ -6,6 +6,20 @@
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
         <item>
+            <title>Version 5.0.0</title>
+            <description><![CDATA[Test OTA update v5.0]]></description>
+            <pubDate>Thu, 16 Jan 2026 06:45:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Wolbyworld/macOS_universal_typo_corrector/releases/download/v5.0.0/Luzia-5.0.0.zip"
+                sparkle:version="500"
+                sparkle:shortVersionString="5.0.0"
+                sparkle:edSignature="wHXMHsD6Y9cUNOzYqUEM4GVKAEVZqrOiKo/KjCj1vQKFaMKO6T/njQBNaW7m81gJ5UtU3UyCU81fsCYhx6C2DA=="
+                length="4754764"
+                type="application/octet-stream"
+            />
+            <sparkle:minimumSystemVersion>11.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Version 4.0.3</title>
             <description><![CDATA[Fix OTA update signature validation]]></description>
             <pubDate>Thu, 16 Jan 2026 06:30:00 +0000</pubDate>
