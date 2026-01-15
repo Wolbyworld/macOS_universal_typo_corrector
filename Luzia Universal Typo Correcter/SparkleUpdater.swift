@@ -18,12 +18,12 @@ class SparkleUpdater: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegat
         
         // Set up delegates properly by creating a new controller
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: false, // Changed to false to prevent automatic checks
+            startingUpdater: true, // Start the updater
             updaterDelegate: self,
             userDriverDelegate: self
         )
     }
-    
+
     func checkForUpdates() {
         // Only check if we have a valid URL
         if let feedURL = Bundle.main.infoDictionary?["SUFeedURL"] as? String,
