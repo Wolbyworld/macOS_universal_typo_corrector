@@ -1,0 +1,111 @@
+#!/bin/bash
+
+set -e
+
+# Configuration - REPLACE THESE VALUES WITH YOUR OWN
+PROXY_URL="https://your-backend.herokuapp.com"
+PROXY_SECRET="your-shared-secret-here"
+BUNDLE_ID="luzia.Luzia-Universal-Typo-Correcter"
+APP_NAME="Luzia Universal Typo Correcter"
+
+echo "🏢 Building Enterprise Edition of Luzia..."
+
+# Obfuscate secret using XOR with bundle ID
+obfuscate_secret() {
+    local secret="$1"
+    local key="$2"
+
+    python3 << EOF
+import base64
+
+secret = "$secret".encode('utf-8')
+key = "$key".encode('utf-8')
+
+result = bytearray()
+for i, byte in enumerate(secret):
+    result.append(byte ^ key[i % len(key)])
+
+print(base64.b64encode(result).decode('utf-8'))
+EOF
+}
+
+OBFUSCATED_SECRET=$(obfuscate_secret "$PROXY_SECRET" "$BUNDLE_ID")
+
+echo "📦 Building with configuration:"
+echo "  Proxy URL: $PROXY_URL"
+echo "  Secret: [OBFUSCATED]"
+echo ""
+
+# Build with custom settings
+xcodebuild clean build \
+    -project "Luzia Universal Typo Correcter.xcodeproj" \
+    -scheme "Luzia Universal Typo Correcter" \
+    -configuration Release \
+    CODE_SIGN_IDENTITY="-" \
+    CODE_SIGNING_REQUIRED=NO \
+    CODE_SIGNING_ALLOWED=NO \
+    -derivedDataPath ./build
+
+echo ""
+echo "✅ Build complete! Injecting enterprise configuration..."
+echo ""
+
+# Inject enterprise configuration into Info.plist
+APP_PLIST="./build/Build/Products/Release/${APP_NAME}.app/Contents/Info.plist"
+
+/usr/libexec/PlistBuddy -c "Add :LuziaProxyURL string '$PROXY_URL'" "$APP_PLIST" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Set :LuziaProxyURL '$PROXY_URL'" "$APP_PLIST"
+
+/usr/libexec/PlistBuddy -c "Add :LuziaProxySecretHash string '$OBFUSCATED_SECRET'" "$APP_PLIST" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Set :LuziaProxySecretHash '$OBFUSCATED_SECRET'" "$APP_PLIST"
+
+/usr/libexec/PlistBuddy -c "Add :LuziaEnterpriseMode string 'YES'" "$APP_PLIST" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Set :LuziaEnterpriseMode 'YES'" "$APP_PLIST"
+
+echo "✅ Enterprise configuration injected!"
+echo ""
+
+# Create DMG with Applications folder
+echo "📦 Creating distribution DMG..."
+
+DMG_NAME="Luzia-Enterprise"
+APP_PATH="./build/Build/Products/Release/${APP_NAME}.app"
+VOL_NAME="Luzia"
+
+# Create temporary directory for DMG contents
+TMP_DIR=$(mktemp -d)
+echo "   Using temp dir: $TMP_DIR"
+
+# Copy app to temp directory
+cp -R "$APP_PATH" "$TMP_DIR/"
+
+# Copy README
+cp "DMG_README.txt" "$TMP_DIR/README.txt"
+
+# Create Applications symlink
+ln -s /Applications "$TMP_DIR/Applications"
+
+# Create the DMG
+echo "   Creating DMG..."
+hdiutil create -volname "$VOL_NAME" \
+    -srcfolder "$TMP_DIR" \
+    -ov -format UDZO \
+    "$DMG_NAME.dmg" > /dev/null 2>&1
+
+# Clean up
+rm -rf "$TMP_DIR"
+
+echo ""
+echo "✅ DMG created successfully!"
+echo ""
+echo "📍 DMG location: $(pwd)/$DMG_NAME.dmg"
+echo "📊 Size: $(du -h "$DMG_NAME.dmg" | cut -f1)"
+echo ""
+echo "🚀 To distribute:"
+echo "   1. Upload $DMG_NAME.dmg to shared drive or Slack"
+echo "   2. Employees open DMG and drag app to Applications folder"
+echo "   3. Right-click app → Open (first launch only)"
+echo ""
+echo "💡 Optional: Sign before distributing for smoother installation"
+echo "   codesign --force --deep --sign 'Developer ID' '$APP_PATH'"
+echo ""

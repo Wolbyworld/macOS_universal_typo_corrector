@@ -320,6 +320,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
                     switch openAIError {
                     case .noApiKey:
                         errorReason = "no_api_key"
+                    case .noProxyConfig:
+                        errorReason = "no_proxy_config"
+                    case .invalidURL:
+                        errorReason = "invalid_url"
                     case .unauthorized:
                         errorReason = "unauthorized"
                     case .rateLimitExceeded:

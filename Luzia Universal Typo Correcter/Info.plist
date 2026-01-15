@@ -24,5 +24,11 @@
 			<string>Debug</string>
 		</dict>
 	</dict>
+	<key>LuziaProxyURL</key>
+	<string>$(LUZIA_PROXY_URL)</string>
+	<key>LuziaProxySecretHash</key>
+	<string>$(LUZIA_PROXY_SECRET_HASH)</string>
+	<key>LuziaEnterpriseMode</key>
+	<string>$(LUZIA_ENTERPRISE_MODE)</string>
 </dict>
 </plist> 

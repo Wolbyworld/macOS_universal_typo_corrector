@@ -41,6 +41,10 @@ Package.resolved
 **/*-secret.json
 .env
 .env.*
+build-enterprise.sh
+
+# Distribution files
+*.dmg
 
 # Log files
 *.log

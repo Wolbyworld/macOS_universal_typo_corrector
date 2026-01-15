@@ -39,6 +39,38 @@ class AppState: ObservableObject {
     @Published var openOnStartup: Bool = false
     @Published var reasoningEffort: String = "minimum"
 
+    // Proxy mode configuration
+    @Published var useProxy: Bool = false
+    @Published var proxyURL: String = ""
+    @Published var proxySecret: String = ""
+
+    // Computed properties for enterprise/bundled configuration
+    var isEnterpriseMode: Bool {
+        guard let enterpriseMode = Bundle.main.object(forInfoDictionaryKey: "LuziaEnterpriseMode") as? String else {
+            return false
+        }
+        return enterpriseMode.uppercased() == "YES"
+    }
+
+    var bundledProxyURL: String? {
+        guard let url = Bundle.main.object(forInfoDictionaryKey: "LuziaProxyURL") as? String,
+              !url.isEmpty,
+              !url.starts(with: "$") else { // Check for unsubstituted variable
+            return nil
+        }
+        return url
+    }
+
+    var bundledProxySecret: String? {
+        guard let hash = Bundle.main.object(forInfoDictionaryKey: "LuziaProxySecretHash") as? String,
+              !hash.isEmpty,
+              !hash.starts(with: "$") else {
+            return nil
+        }
+        // Deobfuscate: XOR with bundle identifier
+        return deobfuscate(hash)
+    }
+
     // Advanced timing settings (in milliseconds)
     @Published var prePasteDelayShort: Int = 30
     @Published var prePasteDelayLong: Int = 80
@@ -60,6 +92,33 @@ class AppState: ObservableObject {
         self.globalShortcut = UserDefaults.standard.string(forKey: "globalShortcut") ?? "⇧⌘G"
         self.openOnStartup = UserDefaults.standard.bool(forKey: "openOnStartup")
         self.reasoningEffort = UserDefaults.standard.string(forKey: "reasoningEffort") ?? "minimum"
+
+        // Load proxy configuration
+        // Priority: 1) Bundled config, 2) Keychain, 3) UserDefaults (for migration)
+        if let bundledURL = bundledProxyURL, let bundledSecret = bundledProxySecret {
+            // Enterprise build with bundled configuration
+            self.useProxy = true
+            self.proxyURL = bundledURL
+            self.proxySecret = bundledSecret
+        } else {
+            // Standard build - load from user preferences
+            self.useProxy = UserDefaults.standard.bool(forKey: "useProxy")
+            self.proxyURL = UserDefaults.standard.string(forKey: "proxyURL") ?? ""
+
+            // Try Keychain first, then UserDefaults (for migration)
+            if let keychainSecret = KeychainHelper.shared.retrieve(forKey: "proxySecret") {
+                self.proxySecret = keychainSecret
+            } else {
+                // Migration: Check old UserDefaults location
+                let oldSecret = UserDefaults.standard.string(forKey: "proxySecret") ?? ""
+                self.proxySecret = oldSecret
+                if !oldSecret.isEmpty {
+                    // Migrate to Keychain
+                    _ = KeychainHelper.shared.save(oldSecret, forKey: "proxySecret")
+                    UserDefaults.standard.removeObject(forKey: "proxySecret")
+                }
+            }
+        }
 
         // Load advanced timing settings (defaults: conservative Phase 1 values)
         self.prePasteDelayShort = UserDefaults.standard.integer(forKey: "prePasteDelayShort")
@@ -133,6 +192,43 @@ class AppState: ObservableObject {
         $postPasteDelayLong.sink { newValue in
             UserDefaults.standard.set(newValue, forKey: "postPasteDelayLong")
         }.store(in: &cancellables)
+
+        $useProxy.sink { newValue in
+            UserDefaults.standard.set(newValue, forKey: "useProxy")
+        }.store(in: &cancellables)
+
+        $proxyURL.sink { newValue in
+            UserDefaults.standard.set(newValue, forKey: "proxyURL")
+        }.store(in: &cancellables)
+
+        $proxySecret
+            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
+            .sink { secret in
+                if secret.isEmpty {
+                    _ = KeychainHelper.shared.delete(forKey: "proxySecret")
+                } else {
+                    _ = KeychainHelper.shared.save(secret, forKey: "proxySecret")
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    // Helper to deobfuscate bundled secret
+    private func deobfuscate(_ obfuscated: String) -> String {
+        guard let bundleID = Bundle.main.bundleIdentifier,
+              let data = Data(base64Encoded: obfuscated) else {
+            return ""
+        }
+
+        let keyData = bundleID.data(using: .utf8) ?? Data()
+        var result = Data()
+
+        for (i, byte) in data.enumerated() {
+            let keyByte = keyData[i % keyData.count]
+            result.append(byte ^ keyByte)
+        }
+
+        return String(data: result, encoding: .utf8) ?? ""
     }
 
     // Helpers

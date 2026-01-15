@@ -10,36 +10,67 @@ struct PreferencesView: View {
         TabView {
             // General Tab
             Form {
-                Section("API Settings") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("OpenAI API Key")
-                            .font(.headline)
+                Section("API Configuration") {
+                    // Show enterprise mode badge if applicable
+                    if appState.isEnterpriseMode {
+                        HStack {
+                            Image(systemName: "building.2.fill")
+                                .foregroundColor(.blue)
+                            Text("Enterprise Mode")
+                                .font(.subheadline)
+                                .foregroundColor(.blue)
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                    }
 
-                        TextField("Paste your API key here", text: $appState.apiKey)
+                    // Option 1: Company Proxy
+                    Button(action: {
+                        appState.useProxy = true
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: appState.useProxy ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(appState.useProxy ? .accentColor : .gray)
+                                .font(.system(size: 18))
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Company Proxy")
+                                    .foregroundColor(.primary)
+                                if appState.isEnterpriseMode {
+                                    Text("Pre-configured")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    // Option 2: Personal API Key
+                    Button(action: {
+                        appState.useProxy = false
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: !appState.useProxy ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(!appState.useProxy ? .accentColor : .gray)
+                                .font(.system(size: 18))
+
+                            Text("Personal OpenAI API Key")
+                                .foregroundColor(.primary)
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    // Show API key field only when not using proxy
+                    if !appState.useProxy {
+                        SecureField("", text: $appState.apiKey)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.body, design: .monospaced))
-                            .autocorrectionDisabled(true)
-                            .frame(minWidth: 400)
-
-                        HStack {
-                            Text("Status: \(appState.apiKey.isEmpty ? "Not set - API key required" : "Set (\(appState.apiKey.prefix(20))...)")")
-                                .font(.caption)
-                                .foregroundColor(appState.apiKey.isEmpty ? .red : .green)
-
-                            Spacer()
-
-                            if !appState.apiKey.isEmpty {
-                                Button("Clear") {
-                                    appState.apiKey = ""
-                                }
-                                .font(.caption)
-                            }
-                        }
-
-                        Text("Get your API key from: platform.openai.com/api-keys")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
                     }
+
+                    Divider()
 
                     Picker("Model", selection: $appState.selectedModel) {
                         ForEach(appState.availableModels, id: \.self) { model in
@@ -47,18 +78,24 @@ struct PreferencesView: View {
                         }
                     }
                 }
-                
+
                 Section("System Prompt") {
-                    TextEditor(text: $appState.systemPrompt)
-                        .font(.system(size: 14))
-                        .frame(minHeight: 100)
-                    
-                    Button("Reset to Default") {
-                        appState.systemPrompt = """
-                        You are an AI text corrector. Fix any typos, grammatical errors, or awkward phrasing in the provided text. Maintain the original meaning and style.
-                        
-                        Return ONLY the corrected text without explanations or additional commentary.
-                        """
+                    VStack(alignment: .leading, spacing: 8) {
+                        TextEditor(text: $appState.systemPrompt)
+                            .font(.system(size: 12, design: .monospaced))
+                            .frame(height: 200)
+                            .scrollContentBackground(.hidden)
+                            .background(Color(NSColor.textBackgroundColor))
+                            .cornerRadius(4)
+
+                        Button("Reset to Default") {
+                            appState.systemPrompt = """
+                            You are an AI text corrector. Fix any typos, grammatical errors, or awkward phrasing in the provided text. Maintain the original meaning and style.
+
+                            Return ONLY the corrected text without explanations or additional commentary.
+                            """
+                        }
+                        .font(.caption)
                     }
                 }
                 
@@ -309,6 +346,6 @@ struct PreferencesView: View {
             }
         }
         .padding()
-        .frame(width: 600, height: 500)
+        .frame(width: 600, height: 550)
     }
 } 

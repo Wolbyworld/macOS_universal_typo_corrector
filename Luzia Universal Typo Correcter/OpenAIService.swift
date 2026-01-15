@@ -6,12 +6,27 @@ class OpenAIService {
     private var systemPrompt: String {
         UserDefaults.standard.string(forKey: "systemPrompt") ?? """
         You are an AI text corrector. Fix any typos, grammatical errors, or awkward phrasing in the provided text. Maintain the original meaning and style.
-        
+
         Return ONLY the corrected text without explanations or additional commentary.
         """
     }
 
     private var reasoningEffort: String { UserDefaults.standard.string(forKey: "reasoningEffort") ?? "minimum" }
+
+    // Proxy mode configuration
+    private var useProxy: Bool { UserDefaults.standard.bool(forKey: "useProxy") }
+    private var proxyURL: String { UserDefaults.standard.string(forKey: "proxyURL") ?? "" }
+    private var proxySecret: String {
+        // Check for bundled configuration first (enterprise builds)
+        if let bundled = Bundle.main.object(forInfoDictionaryKey: "LuziaProxySecretHash") as? String,
+           !bundled.isEmpty,
+           !bundled.starts(with: "$") {
+            return deobfuscateSecret(bundled)
+        }
+
+        // Fall back to Keychain for user-entered secrets
+        return KeychainHelper.shared.retrieve(forKey: "proxySecret") ?? ""
+    }
     private var reasoningEffortAPI: String? {
         switch reasoningEffort.lowercased() {
         case "minimum", "low": return "low"
@@ -25,17 +40,56 @@ class OpenAIService {
         return model.hasPrefix("gpt-5")
     }
 
+    // Helper to deobfuscate bundled secret
+    private func deobfuscateSecret(_ obfuscated: String) -> String {
+        guard let bundleID = Bundle.main.bundleIdentifier,
+              let data = Data(base64Encoded: obfuscated) else {
+            return ""
+        }
+
+        let keyData = bundleID.data(using: .utf8) ?? Data()
+        var result = Data()
+
+        for (i, byte) in data.enumerated() {
+            let keyByte = keyData[i % keyData.count]
+            result.append(byte ^ keyByte)
+        }
+
+        return String(data: result, encoding: .utf8) ?? ""
+    }
+
     func correctText(_ text: String) async throws -> String? {
-        guard !apiKey.isEmpty else { throw OpenAIError.noApiKey }
+        // Validate credentials based on mode
+        if useProxy {
+            guard !proxyURL.isEmpty, !proxySecret.isEmpty else {
+                throw OpenAIError.noProxyConfig
+            }
+        } else {
+            guard !apiKey.isEmpty else { throw OpenAIError.noApiKey }
+        }
 
         func buildRequest(includeReasoning: Bool) throws -> URLRequest {
-            let url = URL(string: "https://api.openai.com/v1/responses")!
+            // Select endpoint based on mode
+            let endpoint = useProxy
+                ? "\(proxyURL)/v1/responses"
+                : "https://api.openai.com/v1/responses"
+
+            guard let url = URL(string: endpoint) else {
+                throw OpenAIError.invalidURL
+            }
+
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
-            request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             request.addValue("application/json", forHTTPHeaderField: "Content-Type")
             request.addValue("application/json", forHTTPHeaderField: "Accept")
-            request.addValue("responses=v1", forHTTPHeaderField: "OpenAI-Beta")
+
+            // Set auth headers based on mode
+            if useProxy {
+                request.addValue(proxySecret, forHTTPHeaderField: "X-Luzia-Secret")
+            } else {
+                request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                request.addValue("responses=v1", forHTTPHeaderField: "OpenAI-Beta")
+            }
 
             var body: [String: Any] = [
                 "model": model,
@@ -169,27 +223,33 @@ class OpenAIService {
 
 enum OpenAIError: Error, LocalizedError {
     case noApiKey
+    case noProxyConfig
+    case invalidURL
     case invalidResponse
     case unauthorized
     case rateLimitExceeded
     case apiError(statusCode: Int)
     case noResponseContent
     case networkError(Error)
-    
+
     var errorDescription: String? {
         switch self {
         case .noApiKey:
             return "OpenAI API key is not set. Please add it in Preferences."
+        case .noProxyConfig:
+            return "Proxy URL or secret is not configured. Please check Preferences."
+        case .invalidURL:
+            return "Invalid proxy URL. Please check Preferences."
         case .invalidResponse:
             return "Invalid response from OpenAI API."
         case .unauthorized:
-            return "Invalid API key. Please check your API key in Preferences."
+            return "Invalid API key or proxy secret. Please check your credentials in Preferences."
         case .rateLimitExceeded:
             return "Rate limit exceeded. Please try again later."
         case .apiError(let statusCode):
-            return "OpenAI API error: \(statusCode)"
+            return "API error: \(statusCode)"
         case .noResponseContent:
-            return "No content in response from OpenAI."
+            return "No content in response from API."
         case .networkError(let error):
             return "Network error: \(error.localizedDescription)"
         }
