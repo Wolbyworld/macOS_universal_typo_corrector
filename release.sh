@@ -98,20 +98,21 @@ APP_PLIST="$BUILT_APP/Contents/Info.plist"
 
 echo -e "${GREEN}   Sparkle keys injected!${NC}"
 
-# Step 2c: Fix code signature (re-sign properly after plist changes)
+# Step 2c: Strip code signature (preserves identity across updates)
+# Re-signing with ad-hoc creates new identity each time, causing:
+# - Accessibility permission re-prompts
+# - Keychain access prompts
+# Stripping signature keeps app "unsigned" consistently
 echo ""
-echo -e "${YELLOW}Step 2c: Re-signing app after plist modifications...${NC}"
+echo -e "${YELLOW}Step 2c: Stripping code signature...${NC}"
 
-# Sign frameworks first (inside-out signing)
-codesign --force --sign - "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
-codesign --force --sign - "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
-codesign --force --sign - "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app"
-codesign --force --sign - "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
-codesign --force --sign - "$BUILT_APP/Contents/Frameworks/Sparkle.framework"
-# Sign main app last
-codesign --force --sign - "$BUILT_APP"
+rm -rf "$BUILT_APP/Contents/_CodeSignature"
+rm -rf "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/_CodeSignature"
+rm -rf "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/_CodeSignature"
+rm -rf "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/_CodeSignature"
+rm -rf "$BUILT_APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/_CodeSignature"
 
-echo -e "${GREEN}   App re-signed!${NC}"
+echo -e "${GREEN}   Signatures stripped (Sparkle uses EdDSA, not codesign)${NC}"
 
 # Step 3: Create releases directory and zip archive
 echo ""
