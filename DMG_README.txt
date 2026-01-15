@@ -28,6 +28,11 @@ No API key needed - just install and use!
 TROUBLESHOOTING
 ===============
 
+• If you see "damaged and can't be opened":
+  Open Terminal and run:
+  xattr -cr "/Applications/Luzia Universal Typo Correcter.app"
+  Then try opening again.
+
 • If nothing happens when pressing ⇧⌘G:
   Go to: System Settings → Privacy & Security → Accessibility
   Make sure Luzia has permission
