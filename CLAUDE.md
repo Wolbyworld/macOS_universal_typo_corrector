@@ -200,7 +200,10 @@ npx wrangler pages deploy website --project-name=luzia-enterprise
 
 Website URL: `https://luzia-enterprise.pages.dev`
 
-**Key insight:** The DMG filename must be `Luzia-Enterprise.dmg` in every release for auto-linking to work.
+**Key points:**
+- The DMG filename must be `Luzia-Enterprise.dmg` in every release for auto-linking to work
+- Website source is `website/index.html` (the enterprise landing page)
+- No need to update website for new releases - auto-links to latest
 
 ## Over-the-Air (OTA) Updates via Sparkle
 
@@ -346,6 +349,8 @@ TMP=$(mktemp -d) && unzip -q releases/Luzia-X.X.X.zip -d "$TMP" && codesign -vvv
 - **Always re-sign after modifying Info.plist** - any plist change invalidates the signature
 - **Sign inside-out**: frameworks/XPC services first, then the main app
 - **Xcode strips custom Info.plist keys** - must inject via PlistBuddy post-build
+- **Don't strip signatures** - Sparkle validates code signatures, not just EdDSA. Stripping causes "improperly signed" error
+- **Ad-hoc signing causes permission re-prompts** - each build gets new identity, so macOS re-asks for Accessibility permissions and Keychain access after OTA updates. Fix requires consistent Developer ID signing ($99/year Apple Developer account)
 
 ## Known Issues
 
