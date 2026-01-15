@@ -6,6 +6,20 @@
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
         <item>
+            <title>Version 5.2.1</title>
+            <description><![CDATA[Fix update signature]]></description>
+            <pubDate>Thu, 16 Jan 2026 07:30:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Wolbyworld/macOS_universal_typo_corrector/releases/download/v5.2.1/Luzia-5.2.1.zip"
+                sparkle:version="521"
+                sparkle:shortVersionString="5.2.1"
+                sparkle:edSignature="mrDrlq6Vp12O8BQRD4budmv03dBKiw0t8XKwdXp/NyzGLh0M7yzkAfw1uySVGnZqu65a139drebL0r1F6xphCw=="
+                length="4754759"
+                type="application/octet-stream"
+            />
+            <sparkle:minimumSystemVersion>11.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Version 5.2.0</title>
             <description><![CDATA[Fix permission prompts on update]]></description>
             <pubDate>Thu, 16 Jan 2026 07:15:00 +0000</pubDate>
