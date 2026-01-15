@@ -20,7 +20,7 @@ A lightweight macOS utility that corrects typos and grammatical errors in any te
 
 ## Installation
 
-1. Download the latest release from the [Releases](https://github.com/yourusername/luzia-typo-correcter/releases) page
+1. Download the latest release from the [Releases](https://github.com/Wolbyworld/macOS_universal_typo_corrector/releases) page
 2. Unzip and move Luzia Universal Typo Correcter to your Applications folder
 3. Launch the app and follow the setup instructions to add your OpenAI API key
 

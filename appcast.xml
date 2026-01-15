@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>Luzia Universal Typo Correcter</title>
+        <link>https://github.com/Wolbyworld/macOS_universal_typo_corrector</link>
+        <description>Most recent changes with links to updates.</description>
+        <language>en</language>
+        <item>
+            <title>Version 1.1.0</title>
+            <description><![CDATA[Added automatic updates - future versions will update automatically]]></description>
+            <pubDate>Wed, 15 Jan 2026 00:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Wolbyworld/macOS_universal_typo_corrector/releases/download/v1.1.0/Luzia-1.1.0.zip"
+                sparkle:version="110"
+                sparkle:shortVersionString="1.1.0"
+                sparkle:edSignature="VkCSqEEu8MMrGKqJ9hWbruHXXMUVw6SigCkWecLaNXEvv806inl47gk0WQVUOM44MqxbwrpXZ6Qa5DpVAMM4Bw=="
+                length="4841946"
+                type="application/octet-stream"
+            />
+            <sparkle:minimumSystemVersion>11.0</sparkle:minimumSystemVersion>
+        </item>
+    </channel>
+</rss>
