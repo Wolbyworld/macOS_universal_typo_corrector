@@ -33,7 +33,7 @@ class AppState: ObservableObject {
     // User-configurable state
     @Published var apiKey: String = ""
     @Published var systemPrompt: String = ""
-    @Published var selectedModel: String = "gpt-5-mini"
+    @Published var selectedModel: String = "openai/gpt-oss-20b"
     @Published var globalShortcut: String = "⇧⌘G"
     @Published var excludedApps: [String] = []
     @Published var openOnStartup: Bool = false
@@ -71,6 +71,9 @@ class AppState: ObservableObject {
         return deobfuscate(hash)
     }
 
+    // Clipboard settings
+    @Published var plainTextOnly: Bool = false
+
     // Advanced timing settings (in milliseconds)
     @Published var prePasteDelayShort: Int = 30
     @Published var prePasteDelayLong: Int = 80
@@ -78,7 +81,30 @@ class AppState: ObservableObject {
     @Published var postPasteDelayLong: Int = 400
 
     // Available choices
-    let availableModels = ["gpt-5-mini", "gpt-5", "gpt-5-nano", "gpt-4.1","gpt-4.1-mini"]
+    let availableModels = [
+        "openai/gpt-oss-20b",
+        "openai/gpt-oss-120b",
+        "gpt-5-mini",
+        "gpt-5",
+        "gpt-5-nano",
+        "gpt-4.1",
+        "gpt-4.1-mini"
+    ]
+
+    // Display names for models (shown in UI)
+    let modelDisplayNames: [String: String] = [
+        "openai/gpt-oss-20b": "GPT-OSS 20B (Fast)",
+        "openai/gpt-oss-120b": "GPT-OSS 120B (Quality)",
+        "gpt-5-mini": "GPT-5 Mini",
+        "gpt-5": "GPT-5",
+        "gpt-5-nano": "GPT-5 Nano",
+        "gpt-4.1": "GPT-4.1",
+        "gpt-4.1-mini": "GPT-4.1 Mini"
+    ]
+
+    func displayName(for model: String) -> String {
+        modelDisplayNames[model] ?? model
+    }
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -88,7 +114,7 @@ class AppState: ObservableObject {
         self.apiKey = UserDefaults.standard.string(forKey: "apiKey") ?? ""
 
         self.systemPrompt = UserDefaults.standard.string(forKey: "systemPrompt") ?? defaultSystemPrompt
-        self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "gpt-5-mini"
+        self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-oss-20b"
         self.globalShortcut = UserDefaults.standard.string(forKey: "globalShortcut") ?? "⇧⌘G"
         self.openOnStartup = UserDefaults.standard.bool(forKey: "openOnStartup")
         self.reasoningEffort = UserDefaults.standard.string(forKey: "reasoningEffort") ?? "minimum"
@@ -119,6 +145,9 @@ class AppState: ObservableObject {
                 }
             }
         }
+
+        // Load clipboard settings
+        self.plainTextOnly = UserDefaults.standard.bool(forKey: "plainTextOnly")
 
         // Load advanced timing settings (defaults: conservative Phase 1 values)
         self.prePasteDelayShort = UserDefaults.standard.integer(forKey: "prePasteDelayShort")
@@ -175,6 +204,10 @@ class AppState: ObservableObject {
 
         $reasoningEffort.sink { newValue in
             UserDefaults.standard.set(newValue, forKey: "reasoningEffort")
+        }.store(in: &cancellables)
+
+        $plainTextOnly.sink { newValue in
+            UserDefaults.standard.set(newValue, forKey: "plainTextOnly")
         }.store(in: &cancellables)
 
         $prePasteDelayShort.sink { newValue in

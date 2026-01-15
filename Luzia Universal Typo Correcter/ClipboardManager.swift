@@ -136,6 +136,17 @@ class ClipboardManager {
     func setClipboardText(_ text: String) {
         print("ClipboardManager: Setting clipboard text, length: \(text.count)")
 
+        // Check if plain text only mode is enabled
+        let plainTextOnly = UserDefaults.standard.bool(forKey: "plainTextOnly")
+
+        if plainTextOnly {
+            // Plain text only mode - skip all formatting
+            pasteboard.clearContents()
+            let success = pasteboard.setString(text, forType: .string)
+            print("ClipboardManager: Set plain text only result: \(success)")
+            return
+        }
+
         // CRITICAL: Get rich text BEFORE clearing clipboard
         let originalRichText = getRichText()
 

@@ -180,6 +180,14 @@ struct PreferencesView: View {
             
             // Advanced Tab
             Form {
+                Section("Clipboard") {
+                    Toggle("Plain text only", isOn: $appState.plainTextOnly)
+                    Text("Paste without formatting. Fixes font issues in Gmail and other web apps.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 Section("Timing Settings") {
                     Text("Adjust delays to optimize latency. Lower values = faster, but may fail on slow apps.")
                         .font(.caption)

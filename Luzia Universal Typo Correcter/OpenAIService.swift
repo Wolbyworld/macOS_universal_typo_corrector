@@ -2,7 +2,7 @@ import Foundation
 
 class OpenAIService {
     private var apiKey: String { UserDefaults.standard.string(forKey: "apiKey") ?? "" }
-    private var model: String { UserDefaults.standard.string(forKey: "selectedModel") ?? "gpt-5-mini" }
+    private var model: String { UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-oss-20b" }
     private var systemPrompt: String {
         UserDefaults.standard.string(forKey: "systemPrompt") ?? """
         You are an AI text corrector. Fix any typos, grammatical errors, or awkward phrasing in the provided text. Maintain the original meaning and style.
