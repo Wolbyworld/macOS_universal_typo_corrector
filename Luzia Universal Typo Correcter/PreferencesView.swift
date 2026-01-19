@@ -89,11 +89,7 @@ struct PreferencesView: View {
                             .cornerRadius(4)
 
                         Button("Reset to Default") {
-                            appState.systemPrompt = """
-                            You are an AI text corrector. Fix any typos, grammatical errors, or awkward phrasing in the provided text. Maintain the original meaning and style.
-
-                            Return ONLY the corrected text without explanations or additional commentary.
-                            """
+                            appState.systemPrompt = AppState.defaultSystemPrompt
                         }
                         .font(.caption)
                     }

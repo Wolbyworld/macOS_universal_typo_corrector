@@ -6,6 +6,20 @@
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
         <item>
+            <title>Version 5.3.0</title>
+            <description><![CDATA[Improved system prompt: better handling of prompts-as-text to prevent the corrector from following instructions in the text being corrected]]></description>
+            <pubDate>Sun, 19 Jan 2026 22:17:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Wolbyworld/macOS_universal_typo_corrector/releases/download/v5.3.0/Luzia-5.3.0.zip"
+                sparkle:version="530"
+                sparkle:shortVersionString="5.3.0"
+                sparkle:edSignature="pAI3qjD13ArOsXicz4Fj4TefPgDqrbZFi4O/BI74dwU/tcwmBjCUwmfYhfrbM8eOewHob7cls81vmCfi/tDWCg=="
+                length="4754650"
+                type="application/octet-stream"
+            />
+            <sparkle:minimumSystemVersion>11.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Version 5.2.1</title>
             <description><![CDATA[Fix update signature]]></description>
             <pubDate>Thu, 16 Jan 2026 07:30:00 +0000</pubDate>

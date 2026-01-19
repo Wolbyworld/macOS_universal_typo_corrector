@@ -5,9 +5,9 @@
 	<key>CFBundleIdentifier</key>
 	<string>luzia.Luzia-Universal-Typo-Correcter</string>
 	<key>CFBundleShortVersionString</key>
-	<string>5.2.1</string>
+	<string>5.3.0</string>
 	<key>CFBundleVersion</key>
-	<string>521</string>
+	<string>530</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>LuziaEnterpriseMode</key>
