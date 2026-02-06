@@ -6,6 +6,20 @@
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
         <item>
+            <title>Version 5.4.0</title>
+            <description><![CDATA[Hotkey passthrough: ⇧⌘G now passes through to the frontmost app when no text is selected (e.g., Finder Go to Folder works again)]]></description>
+            <pubDate>Thu, 06 Feb 2026 12:00:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Wolbyworld/macOS_universal_typo_corrector/releases/download/v5.4.0/Luzia-5.4.0.zip"
+                sparkle:version="540"
+                sparkle:shortVersionString="5.4.0"
+                sparkle:edSignature="f6mae7Vtgb+ICAP53XeFr8FHHRPkfQdubn66b7HyGOaNvrS+k+lyUlvhuthu2EAAM6s2mgSd3MLERou9Zgd8Aw=="
+                length="4756693"
+                type="application/octet-stream"
+            />
+            <sparkle:minimumSystemVersion>11.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Version 5.3.0</title>
             <description><![CDATA[Improved system prompt: better handling of prompts-as-text to prevent the corrector from following instructions in the text being corrected]]></description>
             <pubDate>Sun, 19 Jan 2026 22:17:00 +0000</pubDate>

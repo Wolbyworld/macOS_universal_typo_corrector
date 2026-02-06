@@ -176,13 +176,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     private func handleHotKeyPressed() {
-        guard !isProcessing else { 
+        guard !isProcessing else {
             print("Already processing a correction, ignoring hotkey")
-            return 
+            return
         }
-        guard !isExcludedApp() else { 
-            print("Current app is excluded, ignoring hotkey") 
-            return 
+        guard !isExcludedApp() else {
+            print("Current app is excluded, passing through hotkey")
+            passthroughHotKey()
+            return
+        }
+        if getSelectedText() == nil {
+            print("No text selected, passing through hotkey")
+            passthroughHotKey()
+            return
         }
         
         isProcessing = true
@@ -487,7 +493,51 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         usleep(50000) // 50ms
         keyUp.post(tap: .cghidEventTap)
     }
-    
+
+    /// Query the focused UI element for selected text via Accessibility.
+    /// Returns the selected string, or nil if nothing is selected or AX is unavailable.
+    private func getSelectedText() -> String? {
+        guard let frontmostApp = NSWorkspace.shared.frontmostApplication else { return nil }
+        let appElement = AXUIElementCreateApplication(frontmostApp.processIdentifier)
+
+        var focusedElement: AnyObject?
+        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focusedElement) == .success else {
+            return nil
+        }
+
+        var selectedText: AnyObject?
+        guard AXUIElementCopyAttributeValue(focusedElement as! AXUIElement, kAXSelectedTextAttribute as CFString, &selectedText) == .success else {
+            return nil
+        }
+
+        guard let text = selectedText as? String, !text.isEmpty else {
+            return nil
+        }
+        return text
+    }
+
+    /// Pass the hotkey keystroke through to the frontmost app by temporarily
+    /// unregistering the Carbon handler, posting the CGEvent, then re-registering.
+    private func passthroughHotKey() {
+        // Tear down the Carbon handler so the posted event isn't caught by us
+        hotKey = nil
+
+        // Post ⇧⌘G via CGEvent
+        let source = CGEventSource(stateID: .hidSystemState)
+        let keyCode: CGKeyCode = 0x05 // 'G'
+        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)!
+        keyDown.flags = [.maskCommand, .maskShift]
+        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)!
+        keyUp.flags = [.maskCommand, .maskShift]
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+
+        // Re-register after a brief delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.setupHotKey()
+        }
+    }
+
     private func isExcludedApp() -> Bool {
         if let frontmostApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier {
             return appState.isAppExcluded(frontmostApp)
