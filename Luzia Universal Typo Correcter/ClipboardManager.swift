@@ -153,62 +153,55 @@ class ClipboardManager {
         // Start a new pasteboard writing session
         pasteboard.clearContents()
 
-        // First set plain text (this always works)
-        let success = pasteboard.setString(text, forType: .string)
-        print("ClipboardManager: Set plain text result: \(success)")
+        // 1. Always set plain text
+        let ptSuccess = pasteboard.setString(text, forType: .string)
+        print("ClipboardManager: Set plain text result: \(ptSuccess)")
 
-        // Try to preserve formatting
-        if let originalRichText = originalRichText {
-            print("ClipboardManager: Attempting to preserve rich text formatting")
-            
-            // Create attributed string from corrected plain text
+        // 2. Always set clean HTML with <br> for newlines
+        //    This ensures contentEditable editors (Gmail, Notion, etc.) preserve line breaks.
+        //    NSAttributedString HTML export produces heavy Cocoa-specific markup that
+        //    web editors may strip, so we use minimal HTML instead.
+        let escaped = text
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\n", with: "<br>")
+        let html = "<html><body>\(escaped)</body></html>"
+        if let htmlData = html.data(using: .utf8) {
+            let htmlSuccess = pasteboard.setData(htmlData, forType: .html)
+            print("ClipboardManager: Set HTML result: \(htmlSuccess)")
+        }
+
+        // 3. If original had rich text, also set RTF for native rich text apps (Pages, TextEdit, etc.)
+        if let originalRichText = originalRichText,
+           text.count > 0, originalRichText.length > 0 {
+            print("ClipboardManager: Preserving RTF formatting")
             let attributedString = NSMutableAttributedString(string: text)
-                
-            if text.count > 0 && originalRichText.length > 0 {
-                // Apply attributes from the original text to the new text
-                // Use the full original range for enumeration
-                let originalRange = NSRange(location: 0, length: originalRichText.length)
+            let originalRange = NSRange(location: 0, length: originalRichText.length)
 
-                originalRichText.enumerateAttributes(in: originalRange, options: []) { attributes, attrRange, _ in
-                    // Calculate the corresponding range in the new text
-                    // If new text is shorter, truncate; if longer, only format the overlapping part
-                    let newTextLength = attributedString.length
-                    let newRange = NSRange(
-                        location: min(attrRange.location, newTextLength),
-                        length: min(attrRange.length, max(0, newTextLength - attrRange.location))
-                    )
-
-                    // Only add attributes if the range is valid
-                    if newRange.location < newTextLength && newRange.length > 0 {
-                        attributedString.addAttributes(attributes, range: newRange)
-                    }
-                }
-                
-                // Try setting rich text formats
-                do {
-                    // Convert to RTF and add to pasteboard
-                    let rtfOptions: [NSAttributedString.DocumentAttributeKey: Any] = [
-                        .documentType: NSAttributedString.DocumentType.rtf
-                    ]
-                    let rtfData = try attributedString.data(from: NSRange(location: 0, length: attributedString.length), 
-                                                           documentAttributes: rtfOptions)
-                    let rtfSuccess = pasteboard.setData(rtfData, forType: .rtf)
-                    print("ClipboardManager: Set RTF result: \(rtfSuccess)")
-                    
-                    // Convert to HTML and add to pasteboard
-                    let htmlOptions: [NSAttributedString.DocumentAttributeKey: Any] = [
-                        .documentType: NSAttributedString.DocumentType.html
-                    ]
-                    let htmlData = try attributedString.data(from: NSRange(location: 0, length: attributedString.length),
-                                                            documentAttributes: htmlOptions)
-                    let htmlSuccess = pasteboard.setData(htmlData, forType: .html)
-                    print("ClipboardManager: Set HTML result: \(htmlSuccess)")
-                } catch {
-                    print("ClipboardManager: Error converting/setting rich text formats: \(error)")
+            originalRichText.enumerateAttributes(in: originalRange, options: []) { attributes, attrRange, _ in
+                let newTextLength = attributedString.length
+                let newRange = NSRange(
+                    location: min(attrRange.location, newTextLength),
+                    length: min(attrRange.length, max(0, newTextLength - attrRange.location))
+                )
+                if newRange.location < newTextLength && newRange.length > 0 {
+                    attributedString.addAttributes(attributes, range: newRange)
                 }
             }
-        } else {
-            print("ClipboardManager: No original rich text found to preserve formatting")
+
+            do {
+                let rtfOptions: [NSAttributedString.DocumentAttributeKey: Any] = [
+                    .documentType: NSAttributedString.DocumentType.rtf
+                ]
+                let rtfData = try attributedString.data(
+                    from: NSRange(location: 0, length: attributedString.length),
+                    documentAttributes: rtfOptions)
+                let rtfSuccess = pasteboard.setData(rtfData, forType: .rtf)
+                print("ClipboardManager: Set RTF result: \(rtfSuccess)")
+            } catch {
+                print("ClipboardManager: Error setting RTF: \(error)")
+            }
         }
     }
 }

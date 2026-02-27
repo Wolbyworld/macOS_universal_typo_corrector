@@ -6,6 +6,20 @@
         <description>Most recent changes with links to updates.</description>
         <language>en</language>
         <item>
+            <title>Version 5.5.0</title>
+            <description><![CDATA[Fix newline loss when pasting into Gmail and other web editors (contentEditable)]]></description>
+            <pubDate>Thu, 27 Feb 2026 09:50:00 +0000</pubDate>
+            <enclosure
+                url="https://github.com/Wolbyworld/macOS_universal_typo_corrector/releases/download/v5.5.0/Luzia-5.5.0.zip"
+                sparkle:version="550"
+                sparkle:shortVersionString="5.5.0"
+                sparkle:edSignature="J17yP16ZlSixdefNdaeXvb+kdwtv7YhpPkO/IUbQmjndmFmwyZb5Zx2TmfgjCYc+f9bCH0oYKiPYtVdHaTyjBA=="
+                length="4756677"
+                type="application/octet-stream"
+            />
+            <sparkle:minimumSystemVersion>11.0</sparkle:minimumSystemVersion>
+        </item>
+        <item>
             <title>Version 5.4.0</title>
             <description><![CDATA[Hotkey passthrough: ⇧⌘G now passes through to the frontmost app when no text is selected (e.g., Finder Go to Folder works again)]]></description>
             <pubDate>Thu, 06 Feb 2026 12:00:00 +0000</pubDate>
