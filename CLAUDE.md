@@ -96,11 +96,16 @@ Uses the **Responses API** (`/v1/responses`), not Chat Completions:
 
 ## Common Tasks
 
-### Adding a New Model
+### Model Registry (allModels) vs Picker (availableModels)
 
-1. Add model ID to `AppState.availableModels`
-2. Add display name to `AppState.modelDisplayNames` (e.g., `"model-id": "Friendly Name"`)
-3. If reasoning-capable (gpt-5 prefix), `OpenAIService.isReasoningSupported()` handles it automatically
+`AppState` keeps two lists:
+
+- `allModels` — full registry of every model the backend can route. Source of truth; rarely changes.
+- `availableModels` — subset shown in the Preferences picker. As of v5.6.0 (post bench/2026-05) this is just the two Groq `gpt-oss` variants. The OpenAI `gpt-5*` / `gpt-4.1*` family is still in `allModels` but hidden from the picker because it's ~17× slower than `gpt-oss-20b` at indistinguishable quality for typo correction.
+
+To re-expose a hidden model: add its id back to `availableModels`. To add a brand new model: add to `allModels`, then to `availableModels` if it should appear in the picker, then to `modelDisplayNames` for the friendly label. If it's reasoning-capable (`gpt-5` prefix), `OpenAIService.isReasoningSupported()` handles it automatically.
+
+`AppState.init()` normalizes a persisted `selectedModel` that's no longer in `availableModels` back to the default — important if you ever shrink the picker again, otherwise users with stale prefs see an empty selection.
 
 ### Adjusting Timing
 
@@ -176,6 +181,8 @@ This script:
    - `MARKETING_VERSION` = display version (e.g., "4.0.0")
    - `CURRENT_PROJECT_VERSION` = build number (e.g., 400)
 2. Source Info.plist values are ignored during build
+
+**Watch out:** `release.sh` Step 1 still runs `PlistBuddy` against the source `Info.plist`. That edit is silently overridden by Xcode's `MARKETING_VERSION` during the build, so the resulting binary reports the OLD version even though release.sh logs claim the new one. Always update **both** places (project.pbxproj AND release.sh's Info.plist edit) until release.sh is fixed to also touch project.pbxproj. v5.6.0 was caught by this and shipped as a binary tagged 5.5.0 in production.
 
 ### Deployment Chain
 
@@ -377,33 +384,25 @@ Requested on first launch in `AppDelegate.applicationDidFinishLaunching()`.
 
 ### Architecture
 
-The enterprise backend is deployed on Heroku (`luzia-backend` app). Stats are stored in **PostgreSQL**, not Redis. Redis is only used for rate limiting.
+The proxy backend was originally on Heroku (`luzia-backend` app). **As of 2026-05 it lives on `server-elcano` at `https://backend-alvaro.elcano.cc`** — the Heroku app was deleted and rebuilt as a Python/FastAPI service in `Wolbyworld/luzia-backend` from the spec the clients had documented (no original source survived). Stats are now in **SQLite** at `~/luzia-backend/data/stats.db` on the server, backed up daily to NAS.
 
-- **Backend repo:** `../universal_typo_backend/` (sibling directory)
-- **Stats storage:** PostgreSQL `request_logs` table (model, tokens, cost, latency)
-- **Rate limiting:** Redis via flask-limiter (1000 req/hour global)
+- **Backend repo:** `Wolbyworld/luzia-backend` (private)
+- **Public URL:** `https://backend-alvaro.elcano.cc`
+- **Stats storage:** SQLite `stats` table (model, tokens, cost, latency)
+- **Rate limiting:** in-memory slowapi (1000 req/hour global; resets on container restart — documented limitation)
+- **Deploy:** `docker compose up -d` on `server-elcano`, fronted by Cloudflare Tunnel ingress
 
-### Heroku URL Format
-
-**Important:** Heroku uses a new URL format with a hash suffix:
-```
-https://luzia-backend-e1d9fb64f0d0.herokuapp.com/
-```
-NOT `https://luzia-backend.herokuapp.com/`. Use `heroku info -a luzia-backend` to get the correct URL.
+The legacy Heroku URL `https://luzia-backend-e1d9fb64f0d0.herokuapp.com/` is dead. Old DMGs that hardcoded it must be rebuilt against the new URL via `build-enterprise.sh` (or by injecting `LuziaProxyURL` into the installed `Info.plist` and re-signing — see the existing pattern in `build-enterprise.sh.template`).
 
 ### Querying Stats
 
 ```bash
-# Using the stats script (auto-fetches Heroku config)
-cd ../universal_typo_backend && source venv/bin/activate && \
-  python3 ../universal_typo_corrector/scripts/heroku-stats.py --api
+# Direct API call (requires X-Admin-Secret from server-elcano:~/luzia-backend/.env)
+ADMIN_SECRET=$(ssh server-elcano 'grep ^ADMIN_SECRET ~/luzia-backend/.env | cut -d= -f2-')
+curl -H "X-Admin-Secret: $ADMIN_SECRET" https://backend-alvaro.elcano.cc/admin/stats | jq
 
-# Direct API call
-curl -H "X-Admin-Secret: $LUZIA_ADMIN_SECRET" \
-  https://luzia-backend-e1d9fb64f0d0.herokuapp.com/admin/stats
-
-# Get Heroku config vars
-heroku config -a luzia-backend --json
+# Container logs
+ssh server-elcano 'sudo docker logs luzia-backend --tail 50 -f'
 ```
 
 ### Stats Script Options
