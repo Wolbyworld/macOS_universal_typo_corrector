@@ -84,8 +84,10 @@ class AppState: ObservableObject {
     @Published var postPasteDelayShort: Int = 150
     @Published var postPasteDelayLong: Int = 400
 
-    // Available choices
-    let availableModels = [
+    // Full model registry — every model the backend can route. Kept as the
+    // source of truth so individual entries can be re-exposed in the picker
+    // without re-deriving the list. NOT shown directly in the UI.
+    let allModels = [
         "openai/gpt-oss-20b",
         "openai/gpt-oss-120b",
         "gpt-5-mini",
@@ -93,6 +95,15 @@ class AppState: ObservableObject {
         "gpt-5-nano",
         "gpt-4.1",
         "gpt-4.1-mini"
+    ]
+
+    // Models exposed in the Preferences picker. Bench (2026-05) showed the
+    // OpenAI gpt-5/4.1 family is ~17x slower than the Groq gpt-oss models at
+    // indistinguishable quality for typo/grammar correction, so they're hidden
+    // from the UI for now. To re-expose, add the id back to this list.
+    let availableModels = [
+        "openai/gpt-oss-20b",
+        "openai/gpt-oss-120b"
     ]
 
     // Display names for models (shown in UI)
@@ -119,6 +130,12 @@ class AppState: ObservableObject {
 
         self.systemPrompt = UserDefaults.standard.string(forKey: "systemPrompt") ?? Self.defaultSystemPrompt
         self.selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-oss-20b"
+        // If the persisted model is no longer in the picker (e.g. it was a
+        // gpt-5/4.1 entry hidden in this version), fall back to the default
+        // so the picker doesn't show an empty selection.
+        if !availableModels.contains(self.selectedModel) {
+            self.selectedModel = "openai/gpt-oss-20b"
+        }
         self.globalShortcut = UserDefaults.standard.string(forKey: "globalShortcut") ?? "⇧⌘G"
         self.openOnStartup = UserDefaults.standard.bool(forKey: "openOnStartup")
         self.reasoningEffort = UserDefaults.standard.string(forKey: "reasoningEffort") ?? "minimum"
