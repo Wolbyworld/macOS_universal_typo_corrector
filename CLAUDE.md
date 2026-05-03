@@ -240,7 +240,11 @@ Sparkle 2.x is integrated via Swift Package Manager. Key files:
 
 ### Signing Updates
 
-EdDSA private key is stored in macOS Keychain (created by `generate_keys` tool).
+EdDSA private key is stored in macOS Keychain (created by `generate_keys` tool, account `ed25519`, service `https://sparkle-project.org`).
+
+**⚠ As of 2026-05 the private key is NOT on this Mac's Keychain.** v5.3.0 through v5.5.0 were signed elsewhere. Until the original key is recovered (check the machine that originally ran release.sh — `security find-generic-password -s "https://sparkle-project.org" -a ed25519 -w` to dump it), **OTA updates cannot be shipped** because the public key `6GZWiKhcsOojOzy0S4PWEtOqVzmkD675xYRvAOq/7Kw=` baked into installed binaries will reject any signature made with a different key. v5.6.0 was hand-installed (Path C) for that reason.
+
+If the key is truly lost: rotate. Mint a new keypair with `generate_keys`, ship one mandatory manual install of the new app (which then carries the new pubkey via `SUPublicEDKey` injection), and Sparkle resumes auto-updating from there forward.
 
 ```bash
 # Get public key
