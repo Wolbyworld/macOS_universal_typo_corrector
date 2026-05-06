@@ -31,7 +31,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         
         setupMenuBarItem()
-        setupHotKey()
         
         // Initialize Sparkle
         sparkleUpdater = SparkleUpdater()
@@ -45,6 +44,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         } else {
             print("Accessibility permissions: GRANTED")
         }
+
+        setupHotKey()
         
         // Add menu items to enable preferences access
         setupMenu()
@@ -168,8 +169,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
     
     private func setupHotKey() {
+        guard hotKey == nil else { return }
+
         // Default shortcut: ⇧⌘G
         hotKey = HotKey(key: .g, modifiers: [.shift, .command])
+        hotKey?.shouldPassThroughHandler = { [weak self] in
+            self?.shouldPassThroughHotKeyWithoutInterception() ?? true
+        }
         hotKey?.keyDownHandler = { [weak self] in
             self?.handleHotKeyPressed()
         }
@@ -178,6 +184,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private func handleHotKeyPressed() {
         guard !isProcessing else {
             print("Already processing a correction, ignoring hotkey")
+            return
+        }
+        guard !shouldPassThroughHotKeyWithoutInterception() else {
+            print("Finder or file dialog has focus, passing through hotkey")
+            passthroughHotKey()
             return
         }
         guard !isExcludedApp() else {
@@ -517,9 +528,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     /// Pass the hotkey keystroke through to the frontmost app by temporarily
-    /// unregistering the Carbon handler, posting the CGEvent, then re-registering.
+    /// unregistering the event tap, posting the CGEvent, then re-registering.
     private func passthroughHotKey() {
-        // Tear down the Carbon handler so the posted event isn't caught by us
+        // Tear down the event tap so the posted event isn't caught by us
         hotKey = nil
 
         // Post ⇧⌘G via CGEvent
@@ -536,6 +547,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             self?.setupHotKey()
         }
+    }
+
+    private func shouldPassThroughHotKeyWithoutInterception() -> Bool {
+        let context = HotKeyFocusContextReader.current()
+        let shouldPassThrough = HotKeyPassThroughPolicy.shouldPassThroughCmdShiftG(in: context)
+
+        if shouldPassThrough {
+            print("Finder/file picker context active, leaving ⇧⌘G to the system")
+        }
+
+        return shouldPassThrough
     }
 
     private func isExcludedApp() -> Bool {

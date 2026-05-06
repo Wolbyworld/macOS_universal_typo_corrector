@@ -1,16 +1,16 @@
 import Foundation
 import Cocoa
-import Carbon
 
 class HotKey {
     var keyDownHandler: (() -> Void)?
     var keyUpHandler: (() -> Void)?
+    var shouldPassThroughHandler: (() -> Bool)?
     
     let identifier: UInt32
     private let keyCode: Int
     private let modifiers: NSEvent.ModifierFlags
-    private var eventHandler: EventHandlerRef?
-    private var hotKeyRef: EventHotKeyRef?
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
     
     init(key: KeyCode, modifiers: NSEvent.ModifierFlags, identifier: UInt32 = 0) {
         self.keyCode = key.carbonKeyCode
@@ -24,61 +24,92 @@ class HotKey {
     }
     
     private func register() {
-        guard hotKeyRef == nil else { return }
-        
-        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        
-        // Install event handler
+        guard eventTap == nil else { return }
+
         let selfPointer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
-        let handlerCallback: EventHandlerUPP = { (_, eventRef, userData) -> OSStatus in
-            guard let userData = userData else { return OSStatus(eventNotHandledErr) }
-            let hotKey = Unmanaged<HotKey>.fromOpaque(userData).takeUnretainedValue()
-            
-            var theHotKeyID = EventHotKeyID()
-            GetEventParameter(eventRef, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &theHotKeyID)
-            
-            if theHotKeyID.id == hotKey.identifier {
-                hotKey.keyDownHandler?()
-            }
-            
-            return OSStatus(noErr)
-        }
-        
-        let status = InstallEventHandler(
-            GetApplicationEventTarget(),
-            handlerCallback,
-            1,
-            &eventType,
-            selfPointer,
-            &eventHandler
-        )
-        
-        if status != noErr {
-            print("Failed to install event handler: \(status)")
+        let eventMask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: eventMask,
+            callback: { (_, type, event, userData) -> Unmanaged<CGEvent>? in
+                guard let userData = userData else {
+                    return Unmanaged.passUnretained(event)
+                }
+
+                let hotKey = Unmanaged<HotKey>.fromOpaque(userData).takeUnretainedValue()
+
+                if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                    hotKey.enableEventTap()
+                    return Unmanaged.passUnretained(event)
+                }
+
+                guard type == .keyDown, hotKey.matches(event) else {
+                    return Unmanaged.passUnretained(event)
+                }
+
+                if hotKey.shouldPassThroughHandler?() == true {
+                    return Unmanaged.passUnretained(event)
+                }
+
+                DispatchQueue.main.async {
+                    hotKey.keyDownHandler?()
+                }
+
+                return nil
+            },
+            userInfo: selfPointer
+        ) else {
+            print("Failed to install hotkey event tap. Check Accessibility permissions.")
             return
         }
-        
-        var hotKeyID = EventHotKeyID(signature: OSType(0x4C555A49), id: identifier) // "LUZI" in ASCII
-        
-        var carbonModifiers: UInt32 = 0
-        if modifiers.contains(.command) { carbonModifiers |= UInt32(cmdKey) }
-        if modifiers.contains(.option) { carbonModifiers |= UInt32(optionKey) }
-        if modifiers.contains(.control) { carbonModifiers |= UInt32(controlKey) }
-        if modifiers.contains(.shift) { carbonModifiers |= UInt32(shiftKey) }
-        
-        RegisterEventHotKey(UInt32(keyCode), carbonModifiers, hotKeyID, GetApplicationEventTarget(), OptionBits(0), &hotKeyRef)
+
+        eventTap = tap
+        runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+
+        if let runLoopSource = runLoopSource {
+            CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        }
+
+        enableEventTap()
     }
     
     private func unregister() {
-        if let eventHandler = eventHandler {
-            RemoveEventHandler(eventHandler)
-            self.eventHandler = nil
+        if let runLoopSource = runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+            self.runLoopSource = nil
         }
-        
-        if let hotKeyRef = hotKeyRef {
-            UnregisterEventHotKey(hotKeyRef)
-            self.hotKeyRef = nil
+
+        if let eventTap = eventTap {
+            CGEvent.tapEnable(tap: eventTap, enable: false)
+            CFMachPortInvalidate(eventTap)
+            self.eventTap = nil
         }
+    }
+
+    private func enableEventTap() {
+        guard let eventTap = eventTap else { return }
+        CGEvent.tapEnable(tap: eventTap, enable: true)
+    }
+
+    private func matches(_ event: CGEvent) -> Bool {
+        let eventKeyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
+        guard eventKeyCode == keyCode else { return false }
+
+        let relevantFlags: CGEventFlags = [.maskCommand, .maskShift, .maskControl, .maskAlternate]
+        let eventModifiers = event.flags.intersection(relevantFlags)
+        return eventModifiers == requiredCGEventFlags.intersection(relevantFlags)
+    }
+
+    private var requiredCGEventFlags: CGEventFlags {
+        var flags: CGEventFlags = []
+        if modifiers.contains(.command) { flags.insert(.maskCommand) }
+        if modifiers.contains(.option) { flags.insert(.maskAlternate) }
+        if modifiers.contains(.control) { flags.insert(.maskControl) }
+        if modifiers.contains(.shift) { flags.insert(.maskShift) }
+        return flags
     }
 }
 
@@ -131,4 +162,4 @@ enum KeyCode {
         case .returnKey: return 0x24
         }
     }
-} 
+}
