@@ -173,9 +173,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Default shortcut: ⇧⌘G
         hotKey = HotKey(key: .g, modifiers: [.shift, .command])
-        hotKey?.shouldPassThroughHandler = { [weak self] in
-            self?.shouldPassThroughHotKeyWithoutInterception() ?? true
-        }
         hotKey?.keyDownHandler = { [weak self] in
             self?.handleHotKeyPressed()
         }
@@ -528,9 +525,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     }
 
     /// Pass the hotkey keystroke through to the frontmost app by temporarily
-    /// unregistering the event tap, posting the CGEvent, then re-registering.
+    /// unregistering the Carbon handler, posting the CGEvent, then re-registering.
     private func passthroughHotKey() {
-        // Tear down the event tap so the posted event isn't caught by us
+        // Tear down the Carbon handler so the posted event isn't caught by us
         hotKey = nil
 
         // Post ⇧⌘G via CGEvent

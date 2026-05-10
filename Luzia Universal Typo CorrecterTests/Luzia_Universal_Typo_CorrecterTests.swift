@@ -20,6 +20,18 @@ struct Luzia_Universal_Typo_CorrecterTests {
         #expect(HotKeyPassThroughPolicy.shouldPassThroughCmdShiftG(in: context))
     }
 
+    @Test func cmdShiftGPassesThroughInFinderEvenWhenAnElementLooksEditable() {
+        let context = HotKeyFocusContext(
+            bundleIdentifier: "com.apple.finder",
+            localizedName: "Finder",
+            elements: [
+                .init(role: "AXTextField", subrole: nil, title: nil, roleDescription: "text field", identifier: nil)
+            ]
+        )
+
+        #expect(HotKeyPassThroughPolicy.shouldPassThroughCmdShiftG(in: context))
+    }
+
     @Test func cmdShiftGPassesThroughInNativeOpenPanel() {
         let context = HotKeyFocusContext(
             bundleIdentifier: "com.apple.TextEdit",
@@ -61,6 +73,18 @@ struct Luzia_Universal_Typo_CorrecterTests {
             bundleIdentifier: "com.apple.appkit.xpc.openAndSavePanelService",
             localizedName: "Open and Save Panel Service",
             elements: []
+        )
+
+        #expect(HotKeyPassThroughPolicy.shouldPassThroughCmdShiftG(in: context))
+    }
+
+    @Test func cmdShiftGPassesThroughInTitlelessOpenPanelByIdentifier() {
+        let context = HotKeyFocusContext(
+            bundleIdentifier: "com.apple.TextEdit",
+            localizedName: "TextEdit",
+            elements: [
+                .init(role: "AXWindow", subrole: "AXDialog", title: nil, roleDescription: "dialog", identifier: "NSOpenPanel")
+            ]
         )
 
         #expect(HotKeyPassThroughPolicy.shouldPassThroughCmdShiftG(in: context))
