@@ -15,6 +15,12 @@ struct HotKeyFocusContext: Equatable {
     var elements: [Element]
 }
 
+enum HotKeyRegistrationPolicy {
+    static func shouldRegisterCmdShiftG(accessibilityTrusted: Bool) -> Bool {
+        accessibilityTrusted
+    }
+}
+
 enum HotKeyFocusContextReader {
     static func current() -> HotKeyFocusContext {
         guard let frontmostApp = NSWorkspace.shared.frontmostApplication else {

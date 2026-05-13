@@ -21,6 +21,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     private var cancellables = Set<AnyCancellable>()
     private var lastSimulatedPasteAt: Date?
     private var hasAccessibilityPermissions = false  // Cache permission state
+    private var accessibilityPermissionTimer: Timer?
+    private var hasShownAccessibilityPermissionNotification = false
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Ensure app behaves as agent (LSUIElement now properly set in build settings)
@@ -35,17 +37,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         // Initialize Sparkle
         sparkleUpdater = SparkleUpdater()
         
-        // Check for accessibility permissions (prompt once on launch)
-        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-        hasAccessibilityPermissions = AXIsProcessTrustedWithOptions(options)
-
+        updateAccessibilityPermissionState(prompt: true)
         if !hasAccessibilityPermissions {
-            showNotification("Permissions Required", "Please grant Accessibility permissions in System Settings > Privacy & Security > Accessibility")
-        } else {
-            print("Accessibility permissions: GRANTED")
+            notifyAccessibilityPermissionRequired()
         }
-
         setupHotKey()
+        startAccessibilityPermissionMonitor()
         
         // Add menu items to enable preferences access
         setupMenu()
@@ -58,6 +55,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
         // Hide any main windows for agent app behavior
         hideMainWindows()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        accessibilityPermissionTimer?.invalidate()
+        accessibilityPermissionTimer = nil
     }
     
     private func setupMenu() {
@@ -170,6 +172,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     
     private func setupHotKey() {
         guard hotKey == nil else { return }
+        guard HotKeyRegistrationPolicy.shouldRegisterCmdShiftG(accessibilityTrusted: hasAccessibilityPermissions) else {
+            return
+        }
 
         // Default shortcut: ⇧⌘G
         hotKey = HotKey(key: .g, modifiers: [.shift, .command])
@@ -177,10 +182,65 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             self?.handleHotKeyPressed()
         }
     }
+
+    private func tearDownHotKey() {
+        guard hotKey != nil else { return }
+        hotKey = nil
+    }
+
+    private func startAccessibilityPermissionMonitor() {
+        guard accessibilityPermissionTimer == nil else { return }
+
+        let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
+            self?.updateAccessibilityPermissionState(prompt: false)
+        }
+        accessibilityPermissionTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    @discardableResult
+    private func updateAccessibilityPermissionState(prompt: Bool) -> Bool {
+        let isTrusted: Bool
+
+        if prompt {
+            let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+            isTrusted = AXIsProcessTrustedWithOptions(options)
+        } else {
+            isTrusted = AXIsProcessTrusted()
+        }
+
+        guard isTrusted != hasAccessibilityPermissions else {
+            if isTrusted {
+                setupHotKey()
+            }
+            return isTrusted
+        }
+
+        hasAccessibilityPermissions = isTrusted
+
+        if isTrusted {
+            hasShownAccessibilityPermissionNotification = false
+            print("Accessibility permissions: GRANTED")
+            setupHotKey()
+        } else {
+            print("Accessibility permissions: MISSING")
+            tearDownHotKey()
+            notifyAccessibilityPermissionRequired()
+        }
+
+        return isTrusted
+    }
     
     private func handleHotKeyPressed() {
         guard !isProcessing else {
             print("Already processing a correction, ignoring hotkey")
+            return
+        }
+        guard updateAccessibilityPermissionState(prompt: false) else {
+            print("Accessibility permissions missing, disabling hotkey until permission is granted")
+            tearDownHotKey()
+            notifyAccessibilityPermissionRequired()
+            openAccessibilityPreferences()
             return
         }
         guard !shouldPassThroughHotKeyWithoutInterception() else {
@@ -573,6 +633,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         
         // Also print to console for debugging
         print("\(title): \(message)")
+    }
+
+    private func notifyAccessibilityPermissionRequired() {
+        guard !hasShownAccessibilityPermissionNotification else { return }
+        hasShownAccessibilityPermissionNotification = true
+        showNotification("Permissions Required", "Please grant Accessibility permissions in System Settings > Privacy & Security > Accessibility")
     }
     
     @objc public func openAccessibilityPreferences() {

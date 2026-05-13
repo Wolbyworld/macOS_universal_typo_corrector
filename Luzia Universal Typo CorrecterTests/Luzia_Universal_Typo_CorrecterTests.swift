@@ -10,6 +10,14 @@ import Testing
 
 struct Luzia_Universal_Typo_CorrecterTests {
 
+    @Test func cmdShiftGHotKeyDoesNotRegisterWithoutAccessibilityTrust() {
+        #expect(!HotKeyRegistrationPolicy.shouldRegisterCmdShiftG(accessibilityTrusted: false))
+    }
+
+    @Test func cmdShiftGHotKeyRegistersWithAccessibilityTrust() {
+        #expect(HotKeyRegistrationPolicy.shouldRegisterCmdShiftG(accessibilityTrusted: true))
+    }
+
     @Test func cmdShiftGPassesThroughInFinder() {
         let context = HotKeyFocusContext(
             bundleIdentifier: "com.apple.finder",
